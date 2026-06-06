@@ -944,6 +944,63 @@ void GraphicsWindow::Paint() {
         ToolbarDraw(&uiCanvas);
     }
 
+    // HUD notification bar at the bottom of the viewport.
+    if(!SS.GW.hudMessage.empty()) {
+        constexpr int PAD        = 8;
+        constexpr int LINE_GAP   = 4;
+        constexpr int CH         = TextWindow::CHAR_HEIGHT;
+        constexpr int64_t FLASH_DURATION = 1500; // ms
+        constexpr int64_t FLASH_PERIOD   = 350;  // ms per pulse
+
+        // Split message into lines.
+        std::vector<std::string> lines;
+        std::string cur;
+        for(char c : SS.GW.hudMessage) {
+            if(c == '\n') { lines.push_back(cur); cur.clear(); }
+            else cur += c;
+        }
+        lines.push_back(cur);
+
+        int numLines = (int)lines.size();
+        int boxH = PAD * 2 + numLines * CH + (numLines - 1) * LINE_GAP;
+
+        // Fade-out scale: smoothly drops to 0 over 400 ms when dismissing.
+        constexpr int64_t FADE_MS = 400;
+        float fadeScale = 1.0f;
+        if(SS.GW.hudFading) {
+            int64_t fe = GetMilliseconds() - SS.GW.hudFadeStart;
+            fadeScale = std::max(0.0f, 1.0f - (float)fe / FADE_MS);
+            window->Invalidate();
+        }
+
+        // Flash: pulse background alpha for FLASH_DURATION after message appears.
+        int64_t elapsed = GetMilliseconds() - SS.GW.hudFlashStart;
+        float baseAlpha;
+        if(elapsed < FLASH_DURATION) {
+            double phase = (double)elapsed / FLASH_PERIOD * 2.0 * M_PI;
+            baseAlpha = 145.0f + 65.0f * (float)cos(phase);
+            window->Invalidate();
+        } else {
+            baseAlpha = 210.0f;
+        }
+
+        auto bgAlpha  = (uint8_t)(baseAlpha * fadeScale);
+        auto txtAlpha = (uint8_t)(255.0f   * fadeScale);
+
+        RgbaColor bgColor  = RgbaColor::From(20, 20, 20, bgAlpha);
+        RgbaColor txtColor = (SS.GW.hudIsError
+            ? RgbaColor::From(255, 90, 90)
+            : RgbaColor::From(220, 220, 220)).WithAlpha(txtAlpha);
+
+        uiCanvas.DrawRect(0, (int)camera.width, boxH, 0, bgColor, {}, /*zIndex=*/10);
+
+        // Draw lines top-to-bottom within the box (line 0 at top of box).
+        for(int i = 0; i < numLines; i++) {
+            int lineY = boxH - PAD - CH - i * (CH + LINE_GAP);
+            uiCanvas.DrawBitmapText(lines[i], PAD, lineY, txtColor, /*zIndex=*/11);
+        }
+    }
+
     canvas->FlushFrame();
     canvas->FinishFrame();
     canvas->Clear();

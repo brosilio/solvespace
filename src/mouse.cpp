@@ -126,6 +126,18 @@ void GraphicsWindow::MouseMoved(double x, double y, bool leftDown,
         shiftDown = !shiftDown;
     }
 
+    // Update HUD hover state so mouse-over keeps the notification visible.
+    if(!hudMessage.empty()) {
+        double width, height;
+        window->GetContentSize(&width, &height);
+        // x,y are centered coords; canvas_y = y + height/2; HUD bar sits at [0, HudBoxHeight()]
+        bool nowHovered = (y + height / 2.0) <= HudBoxHeight();
+        if(nowHovered != hudHovered) {
+            hudHovered = nowHovered;
+            Invalidate();
+        }
+    }
+
     // Not passing right-button and middle-button drags to the toolbar avoids
     // some cosmetic issues with trackpad pans/rotates implemented with
     // simulated right-button drag events causing spurious hover events.
@@ -1525,6 +1537,7 @@ void GraphicsWindow::MouseLeave() {
         toolbarHovered = Command::NONE;
         Invalidate();
     }
+    hudHovered = false;
     SS.extraLine.draw = false;
 }
 

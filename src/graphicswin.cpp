@@ -489,6 +489,57 @@ void GraphicsWindow::AnimateOntoWorkplane() {
     AnimateOnto(quatf, offsetf);
 }
 
+int GraphicsWindow::HudBoxHeight() const {
+    constexpr int PAD      = 8;
+    constexpr int LINE_GAP = 4;
+    int lines = 1;
+    for(char c : hudMessage) {
+        if(c == '\n') lines++;
+    }
+    return PAD * 2 + lines * TextWindow::CHAR_HEIGHT + (lines - 1) * LINE_GAP;
+}
+
+void GraphicsWindow::ShowHudMessage(const std::string &msg, bool isError) {
+    // Normalize line endings.
+    std::string normalized;
+    normalized.reserve(msg.size());
+    for(char c : msg) {
+        if(c != '\r') normalized += c;
+    }
+    while(!normalized.empty() && (normalized.back() == '\n' || normalized.back() == ' '))
+        normalized.pop_back();
+
+    hudMessage    = normalized;
+    hudIsError    = isError;
+    hudHovered    = false;
+    hudFading     = false;
+    hudFlashStart = GetMilliseconds();
+    Invalidate();
+    if(!hudTimer) {
+        hudTimer = Platform::CreateTimer();
+        hudTimer->onTimeout = [this]() {
+            if(!hudFading) {
+                // 5-second hold expired: check hover, then start fade.
+                if(hudHovered) {
+                    hudTimer->RunAfter(250);
+                    return;
+                }
+                hudFading    = true;
+                hudFadeStart = GetMilliseconds();
+                Invalidate();
+                hudTimer->RunAfter(400); // clear after fade completes
+            } else {
+                // Fade complete: clear.
+                hudMessage.clear();
+                hudFading  = false;
+                hudHovered = false;
+                Invalidate();
+            }
+        };
+    }
+    hudTimer->RunAfter(5000);
+}
+
 void GraphicsWindow::AnimateOnto(Quaternion quatf, Vector offsetf) {
     // Get our initial orientation and translation.
     Quaternion quat0 = Quaternion::From(projRight, projUp);

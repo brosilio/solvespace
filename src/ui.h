@@ -625,6 +625,18 @@ public:
     // not displayed.
     bool    havePainted;
 
+    // HUD notification displayed at the bottom of the viewport instead of
+    // a modal dialog. Auto-clears after a few seconds.
+    std::string        hudMessage;
+    bool               hudIsError;
+    bool               hudHovered;
+    bool               hudFading;
+    int64_t            hudFlashStart;
+    int64_t            hudFadeStart;
+    Platform::TimerRef hudTimer;
+    void ShowHudMessage(const std::string &msg, bool isError);
+    int  HudBoxHeight() const;
+
     // Some state for the context menu.
     struct {
         bool        active;
