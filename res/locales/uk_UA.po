@@ -961,6 +961,10 @@ msgstr "Показати Панель &Інструментів"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Показати Вікно Власти&востей"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2327,3 +2331,8 @@ msgstr "Некоректний формат: визначте X, Y, Z"
 
 #~ msgid "Show Menu &Bar"
 #~ msgstr "Показати Панель &Меню"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

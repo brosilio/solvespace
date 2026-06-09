@@ -44,6 +44,10 @@ std::string AcceleratorDescription(const KeyboardEvent &accel) {
                 label += toupper((char)(accel.chr & 0xff));
             }
             break;
+
+        case KeyboardEvent::Key::NUMLOCK:
+            label += "NumLock";
+            break;
     }
 
     return label;

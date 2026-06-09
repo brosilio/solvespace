@@ -976,6 +976,10 @@ msgstr "Показывать па&нель инструментов"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Показывать брау&зер"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2640,3 +2644,8 @@ msgstr "Неверный формат: введите данные как x, y, 
 #~ msgid "Scale must not be zero or negative!"
 #~ msgstr ""
 #~ "Коэффициент масштабирования не может быть нулевым или отрицательным!"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

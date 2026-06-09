@@ -429,6 +429,7 @@ public:
     TextWindow                 *pTW;
     TextWindow                 &TW;
     GraphicsWindow              GW;
+    CalcWindow                  CW;
 
     // The state for undo/redo
     typedef struct UndoState {

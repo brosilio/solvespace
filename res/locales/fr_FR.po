@@ -972,6 +972,10 @@ msgstr "Affichage &Barre d'outils"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Affichage du &Navigateur de Propriété"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2639,3 +2643,8 @@ msgstr "Mauvais format : Spécifiez x, y, z"
 
 #~ msgid "Comma-separated values"
 #~ msgstr "Valeurs CSV séparées par des virgules"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

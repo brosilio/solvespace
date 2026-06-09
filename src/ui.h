@@ -109,6 +109,7 @@ enum class Command : uint32_t {
     CENTER_VIEW,
     SHOW_TOOLBAR,
     SHOW_TEXT_WND,
+    SHOW_CALC_WND,
     UNITS_INCHES,
     UNITS_FEET_INCHES,
     UNITS_MM,
@@ -545,6 +546,36 @@ public:
     void EditControlDone(std::string s);
 };
 
+class CalcWindow {
+public:
+    Platform::WindowRef                 window;
+    std::shared_ptr<ViewportCanvas>     canvas;
+
+    struct Entry {
+        std::string  expr;
+        std::string  result;
+        bool         isError = false;
+    };
+    std::vector<Entry>  history;
+    int                 scrollPos = 0;
+    std::string         inputBuf;
+
+    void Init();
+    void Clear();
+    void Submit(const std::string &expr);
+    void Toggle();
+    void Paint();
+    bool KeyboardEvent(Platform::KeyboardEvent ev);
+
+private:
+    int  TotalRows()   const;
+    int  VisibleRows() const;
+    void UpdateScrollbar();
+};
+
+// Declared in solvespace.h as SS.CW; defined there.
+std::string CalcEvaluate(const std::string &input);
+
 class GraphicsWindow {
 public:
     void Init();
@@ -574,6 +605,7 @@ public:
     Platform::MenuItemRef explodeMenuItem;
     Platform::MenuItemRef showToolbarMenuItem;
     Platform::MenuItemRef showTextWndMenuItem;
+    Platform::MenuItemRef showCalcWndMenuItem;
     Platform::MenuItemRef fullScreenMenuItem;
 
     Platform::MenuItemRef unitsMmMenuItem;

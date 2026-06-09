@@ -83,6 +83,7 @@ struct KeyboardEvent {
     enum class Key {
         CHARACTER,
         FUNCTION,
+        NUMLOCK,
     };
 
     Type        type;

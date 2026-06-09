@@ -147,6 +147,8 @@ if(ENABLE_GUI OR ENABLE_CLI)
         resource.cpp
         request.cpp
         style.cpp
+        calc.cpp
+        calculatorwin.cpp
         textscreens.cpp
         textwin.cpp
         toolbar.cpp

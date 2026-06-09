@@ -948,6 +948,10 @@ msgstr "Zobrazit panel &nástrojů"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Zobrazit &parametry"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2298,3 +2302,8 @@ msgstr "Měřítko nemůže být nulové nebo záporné."
 #: view.cpp:139 view.cpp:148
 msgid "Bad format: specify x, y, z"
 msgstr "Chybný formát: zadej x, y, z"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

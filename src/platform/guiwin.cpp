@@ -988,7 +988,9 @@ public:
                 if(GetKeyState(VK_CONTROL) & 0x8000)
                     event.controlDown = true;
 
-                if(wParam >= VK_F1 && wParam <= VK_F12) {
+                if(wParam == VK_NUMLOCK) {
+                    event.key = Platform::KeyboardEvent::Key::NUMLOCK;
+                } else if(wParam >= VK_F1 && wParam <= VK_F12) {
                     event.key = Platform::KeyboardEvent::Key::FUNCTION;
                     event.num = wParam - VK_F1 + 1;
                 } else {

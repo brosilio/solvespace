@@ -938,6 +938,10 @@ msgstr "ツールバーを表示 (&T)"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "プロパティブラウザを表示 (&w)"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2382,3 +2386,8 @@ msgstr "書式が誤っています。\"x, y, z\" で指定してください。
 
 #~ msgid "E&qual Length / Radius / Angle"
 #~ msgstr "長さ・半径・角度を等値にする (&q)"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

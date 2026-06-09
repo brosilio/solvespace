@@ -955,6 +955,10 @@ msgstr "Show &Toolbar"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Show Property Bro&wser"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2516,3 +2520,8 @@ msgstr "Bad format: specify x, y, z"
 #~ msgctxt "file-type"
 #~ msgid "Q3D Object file"
 #~ msgstr "Q3D Object file"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

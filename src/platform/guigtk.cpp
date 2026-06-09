@@ -681,6 +681,18 @@ protected:
         KeyboardEvent event = {};
         event.type = type;
 
+        // Read the keyval first: the modifier filter below drops events when
+        // Mod2 (NumLock state) is set, which would swallow NumLock presses
+        // entirely before we could check for GDK_KEY_Num_Lock.
+        guint keyval;
+        gdk_event_get_keyval((GdkEvent*)gdk_event, &keyval);
+
+        if(keyval == GDK_KEY_Num_Lock) {
+            event.key = KeyboardEvent::Key::NUMLOCK;
+            if(_receiver->onKeyboardEvent) return _receiver->onKeyboardEvent(event);
+            return false;
+        }
+
         GdkModifierType state;
         gdk_event_get_state((GdkEvent*)gdk_event, &state);
 
@@ -691,9 +703,6 @@ protected:
 
         event.shiftDown   = (state & GDK_SHIFT_MASK)   != 0;
         event.controlDown = (state & GDK_CONTROL_MASK) != 0;
-        
-        guint keyval;
-        gdk_event_get_keyval((GdkEvent*)gdk_event, &keyval);
 
         char32_t chr = gdk_keyval_to_unicode(gdk_keyval_to_lower(keyval));
         if(chr != 0) {

@@ -151,14 +151,18 @@ void SolveSpaceUI::Init() {
     AfterNewFile();
 
     if(TW.window && GW.window) {
-        TW.window->ThawPosition(settings, "TextWindow");
         GW.window->ThawPosition(settings, "GraphicsWindow");
-        TW.window->SetVisible(true);
+        TW.window->ThawPosition(settings, "TextWindow");
         GW.window->SetVisible(true);
+        TW.window->SetVisible(true);
         GW.window->Focus();
 
         // Do this once the window is created.
         Request3DConnexionEventsForWindow(GW.window);
+    }
+    if(CW.window) {
+        CW.window->ThawPosition(settings, "CalcWindow");
+        // Calculator starts hidden; user opens it via menu or NumLock double-tap.
     }
 }
 
@@ -210,6 +214,7 @@ void SolveSpaceUI::Exit() {
 
     GW.window->FreezePosition(settings, "GraphicsWindow");
     TW.window->FreezePosition(settings, "TextWindow");
+    if(CW.window) CW.window->FreezePosition(settings, "CalcWindow");
 
     // Recent files
     for(size_t i = 0; i < MAX_RECENT; i++) {
@@ -547,6 +552,7 @@ void SolveSpaceUI::AfterNewFile() {
 
     GW.Init();
     TW.Init();
+    CW.Init();
 
     unsaved = false;
 

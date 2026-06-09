@@ -927,6 +927,10 @@ msgstr "显示工具栏(&T)"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "显示属性浏览器(&W)"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2381,3 +2385,8 @@ msgstr "格式错误：请指定 x,y,z"
 #~ msgctxt "file-type"
 #~ msgid "Q3D Object file"
 #~ msgstr "Q3D对象文件"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

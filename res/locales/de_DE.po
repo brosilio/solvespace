@@ -974,6 +974,10 @@ msgstr "Werkzeugleiste anzeigen"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Attributbrowser anzeigen"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2615,3 +2619,8 @@ msgstr "Ungültiges Format: geben Sie x, y, z ein"
 #~ msgctxt "button"
 #~ msgid "_No"
 #~ msgstr "_Nein"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"

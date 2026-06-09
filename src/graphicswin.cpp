@@ -5,6 +5,7 @@
 // Copyright 2008-2013 Jonathan Westhues.
 //-----------------------------------------------------------------------------
 #include "solvespace.h"
+#include <chrono>
 
 namespace SolveSpace {
 
@@ -105,6 +106,7 @@ const MenuEntry Menu[] = {
 { 1,  NULL,                             Command::NONE,             0,       KN, NULL   },
 { 1, N_("Show &Toolbar"),               Command::SHOW_TOOLBAR,     C|'\t',  KC, mView  },
 { 1, N_("Show Property Bro&wser"),      Command::SHOW_TEXT_WND,    '\t',    KC, mView  },
+{ 1, N_("Show &Calculator"),            Command::SHOW_CALC_WND,    0,       KC, mView  },
 { 1,  NULL,                             Command::NONE,             0,       KN, NULL   },
 { 1, N_("&Full Screen"),                Command::FULL_SCREEN,      C|F|11,  KC, mView  },
 
@@ -238,6 +240,25 @@ Platform::KeyboardEvent GraphicsWindow::AcceleratorForCommand(Command cmd) {
 bool GraphicsWindow::KeyboardEvent(Platform::KeyboardEvent event) {
     using Platform::KeyboardEvent;
 
+    // Double-tap NumLock opens/focuses the calculator.
+    // Two presses within 400 ms trigger it; the even tap count leaves NumLock
+    // in the same state it was before the double-tap.
+    if(event.key == KeyboardEvent::Key::NUMLOCK) {
+        if(event.type == KeyboardEvent::Type::PRESS) {
+            static auto lastNumLock = std::chrono::steady_clock::time_point{};
+            auto now = std::chrono::steady_clock::now();
+            auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           now - lastNumLock).count();
+            if(ms < 400) {
+                SS.CW.Toggle();
+                lastNumLock = {}; // reset so triple-tap doesn't re-trigger
+            } else {
+                lastNumLock = now;
+            }
+        }
+        return true; // always consume NumLock
+    }
+
     if(event.type == KeyboardEvent::Type::RELEASE)
         return true;
 
@@ -328,6 +349,8 @@ void GraphicsWindow::PopulateMainMenu() {
                 showToolbarMenuItem = menuItem;
             } else if(Menu[i].cmd == Command::SHOW_TEXT_WND) {
                 showTextWndMenuItem = menuItem;
+            } else if(Menu[i].cmd == Command::SHOW_CALC_WND) {
+                showCalcWndMenuItem = menuItem;
             } else if(Menu[i].cmd == Command::FULL_SCREEN) {
                 fullScreenMenuItem = menuItem;
             } else if(Menu[i].cmd == Command::UNITS_MM) {
@@ -948,6 +971,10 @@ void GraphicsWindow::MenuView(Command id) {
         case Command::SHOW_TEXT_WND:
             SS.GW.showTextWindow = !SS.GW.showTextWindow;
             SS.GW.EnsureValidActives();
+            break;
+
+        case Command::SHOW_CALC_WND:
+            SS.CW.Toggle();
             break;
 
         case Command::UNITS_INCHES:

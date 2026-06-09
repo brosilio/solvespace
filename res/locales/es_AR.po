@@ -952,6 +952,10 @@ msgstr "Mostrar &Barra de herramientas"
 #: graphicswin.cpp:105
 msgid "Show Property Bro&wser"
 msgstr "Mostrar Navegador de Pro&piedades"
+#: graphicswin.cpp:109
+msgid "Show &Calculator"
+msgstr "Show &Calculator"
+
 
 #: graphicswin.cpp:107
 msgid "&Full Screen"
@@ -2317,3 +2321,8 @@ msgstr "La escala no debe ser cero o negativa."
 #: view.cpp:139 view.cpp:148
 msgid "Bad format: specify x, y, z"
 msgstr "Formato incorrecto: especifica x, y, z"
+
+#: calculatorwin.cpp:80
+msgctxt "title"
+msgid "Calculator"
+msgstr "Calculator"
