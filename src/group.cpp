@@ -66,6 +66,77 @@ void Group::ExtrusionForceVectorTo(const Vector &v) {
     SK.GetParam(h.param(2))->val = v.z;
 }
 
+// Search the model for a point and two non-parallel line segments that lie in
+// the plane of the given face, so that a fully parametric workplane can be
+// built from them (WORKPLANE_BY_LINE_SEGMENTS). Returns false if the face has
+// no such edges (e.g. a circular cap, a lathe face, or an imported body), in
+// which case the caller should fall back to the numeric, normal-based method.
+static bool FindFaceWorkplaneEdges(Entity *face, hEntity *origin,
+                                   hEntity *lineB, hEntity *lineC) {
+    Vector n  = face->FaceGetNormalNum().WithMagnitude(1);
+    Vector p0 = face->FaceGetPointNum();
+
+    // Collect line segments whose endpoints both lie in the face's plane.
+    std::vector<hEntity> inPlane;
+    for(Entity &e : SK.entity) {
+        if(e.type != Entity::Type::LINE_SEGMENT) continue;
+        if(e.construction) continue;
+
+        Vector a = SK.GetEntity(e.point[0])->PointGetNum();
+        Vector b = SK.GetEntity(e.point[1])->PointGetNum();
+        if(fabs(a.Minus(p0).Dot(n)) > LENGTH_EPS) continue;
+        if(fabs(b.Minus(p0).Dot(n)) > LENGTH_EPS) continue;
+        if(b.Minus(a).Magnitude() < LENGTH_EPS) continue; // degenerate
+        inPlane.push_back(e.h);
+    }
+
+    // Prefer a pair of edges that share a vertex (a real corner of the face),
+    // choosing the corner closest to the face's reference point so the origin
+    // lands somewhere sensible. Any two coplanar non-parallel lines define the
+    // same plane, so a pair that doesn't share a vertex is an acceptable
+    // fallback, with the origin at an in-plane endpoint.
+    bool found = false;
+    bool foundShared = false;
+    double bestDist = VERY_POSITIVE;
+    for(size_t i = 0; i < inPlane.size(); i++) {
+        Entity *a = SK.GetEntity(inPlane[i]);
+        Vector da = a->VectorGetNum().WithMagnitude(1);
+        for(size_t j = i + 1; j < inPlane.size(); j++) {
+            Entity *b = SK.GetEntity(inPlane[j]);
+            Vector db = b->VectorGetNum().WithMagnitude(1);
+            if(da.Cross(db).Magnitude() < LENGTH_EPS) continue; // parallel
+
+            // Does this pair share an endpoint?
+            hEntity shared = Entity::NO_ENTITY;
+            for(int ka = 0; ka < 2; ka++) {
+                for(int kb = 0; kb < 2; kb++) {
+                    if(a->point[ka] == b->point[kb]) shared = a->point[ka];
+                }
+            }
+
+            if(shared != Entity::NO_ENTITY) {
+                double dist = SK.GetEntity(shared)->PointGetNum().Minus(p0).Magnitude();
+                if(!foundShared || dist < bestDist) {
+                    foundShared = true;
+                    found = true;
+                    bestDist = dist;
+                    *origin = shared;
+                    *lineB  = a->h;
+                    *lineC  = b->h;
+                }
+            } else if(!foundShared && !found) {
+                // First non-shared pair seen; use it only if nothing better
+                // (a shared-vertex pair) turns up.
+                found  = true;
+                *origin = a->point[0];
+                *lineB  = a->h;
+                *lineC  = b->h;
+            }
+        }
+    }
+    return found;
+}
+
 void Group::MenuGroup(Command id)  {
     MenuGroup(id, Platform::Path());
 }
@@ -141,6 +212,9 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
                     } else if(wrkplg->subtype == Subtype::WORKPLANE_BY_POINT_NORMAL) {
                         g.predef.q = wrkplg->predef.q;
                         g.predef.entityB = wrkplg->predef.entityB;
+                    } else if(wrkplg->subtype == Subtype::WORKPLANE_BY_FACE) {
+                        g.predef.q = wrkplg->predef.q;
+                        g.predef.entityB = wrkplg->predef.entityB;
                     } else ssassert(false, "Unexpected workplane subtype");
                 }
             } else if(gs.anyNormals == 1 && gs.points == 1 && gs.n == 2) {
@@ -148,10 +222,56 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
                 g.predef.entityB = gs.anyNormal[0];
                 g.predef.q      = SK.GetEntity(gs.anyNormal[0])->NormalGetNum();
                 g.predef.origin = gs.point[0];
-            //} else if(gs.faces == 1 && gs.points == 1 && gs.n == 2) {
-            //    g.subtype = Subtype::WORKPLANE_BY_POINT_FACE;
-            //    g.predef.q      = SK.GetEntity(gs.face[0])->NormalGetNum();
-            //    g.predef.origin = gs.point[0];
+            } else if(gs.faces == 1 && gs.n == 1) {
+                Entity *face = SK.GetEntity(gs.face[0]);
+
+                // Prefer a fully parametric workplane built from a point and
+                // two of the face's edges; this tracks the face as the model
+                // changes. Fall back to a numeric snapshot of the face's plane
+                // for faces without two suitable straight edges (circular caps,
+                // lathe faces, imported bodies).
+                if(FindFaceWorkplaneEdges(face, &g.predef.origin,
+                                          &g.predef.entityB, &g.predef.entityC)) {
+                    g.subtype = Subtype::WORKPLANE_BY_LINE_SEGMENTS;
+
+                    Vector ut = SK.GetEntity(g.predef.entityB)->VectorGetNum();
+                    Vector vt = SK.GetEntity(g.predef.entityC)->VectorGetNum();
+                    ut = ut.WithMagnitude(1);
+                    vt = vt.WithMagnitude(1);
+
+                    if(fabs(SS.GW.projUp.Dot(vt)) < fabs(SS.GW.projUp.Dot(ut))) {
+                        swap(ut, vt);
+                        g.predef.swapUV = true;
+                    }
+                    if(SS.GW.projRight.Dot(ut) < 0) g.predef.negateU = true;
+                    if(SS.GW.projUp.   Dot(vt) < 0) g.predef.negateV = true;
+                } else {
+                    // Build a workplane that tracks the face itself. We keep a
+                    // reference to the face entity; at generation time the
+                    // origin is read live from the face (so it follows the
+                    // model) and the snapshotted frame is rotated to match the
+                    // face's current normal. Used for faces without two
+                    // suitable straight edges, e.g. circular caps and lathe
+                    // faces.
+                    g.subtype = Subtype::WORKPLANE_BY_FACE;
+                    g.predef.entityB = gs.face[0];
+
+                    Vector n = face->FaceGetNormalNum().WithMagnitude(1);
+
+                    // Orient the normal towards the viewer, so that the new
+                    // sketch faces us.
+                    Vector camn = SS.GW.projRight.Cross(SS.GW.projUp);
+                    if(n.Dot(camn) < 0) n = n.ScaledBy(-1);
+
+                    // Pick an in-plane u axis aligned with screen-right where
+                    // possible, falling back to an arbitrary perpendicular.
+                    Vector u = SS.GW.projRight.Minus(n.ScaledBy(SS.GW.projRight.Dot(n)));
+                    if(u.Magnitude() < LENGTH_EPS) u = n.Normal(0);
+                    u = u.WithMagnitude(1);
+                    Vector v = n.Cross(u).WithMagnitude(1);
+
+                    g.predef.q = Quaternion::From(u, v);
+                }
             } else {
                 Error(_("Bad selection for new sketch in workplane. This "
                         "group can be created with:\n\n"
@@ -160,8 +280,7 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
                         "parallel to the lines)\n"
                         "    * a point and a normal (through the point, "
                         "orthogonal to the normal)\n"
-                        /*"    * a point and a face (through the point, "
-                        "parallel to the face)\n"*/
+                        "    * a face (coincident with the face)\n"
                         "    * a workplane (copy of the workplane)\n"));
                 return;
             }
@@ -451,6 +570,7 @@ void Group::Generate(EntityList *entity, ParamList *param)
 
         case Type::DRAWING_WORKPLANE: {
             Quaternion q;
+            Vector origin;
             if(subtype == Subtype::WORKPLANE_BY_LINE_SEGMENTS) {
                 Vector u = SK.GetEntity(predef.entityB)->VectorGetNum();
                 Vector v = SK.GetEntity(predef.entityC)->VectorGetNum();
@@ -462,11 +582,33 @@ void Group::Generate(EntityList *entity, ParamList *param)
                 if(predef.negateU) u = u.ScaledBy(-1);
                 if(predef.negateV) v = v.ScaledBy(-1);
                 q = Quaternion::From(u, v);
+                origin = SK.GetEntity(predef.origin)->PointGetNum();
             } else if(subtype == Subtype::WORKPLANE_BY_POINT_ORTHO) {
                 // Already given, numerically.
                 q = predef.q;
+                origin = SK.GetEntity(predef.origin)->PointGetNum();
             } else if(subtype == Subtype::WORKPLANE_BY_POINT_NORMAL) {
                 q = SK.GetEntity(predef.entityB)->NormalGetNum();
+                origin = SK.GetEntity(predef.origin)->PointGetNum();
+            } else if(subtype == Subtype::WORKPLANE_BY_FACE) {
+                // Track the referenced face: read its origin live, and rotate
+                // the snapshotted frame to follow the face's current normal.
+                Entity *face = SK.GetEntity(predef.entityB);
+                Vector n0 = predef.q.RotationN();
+                Vector n1 = face->FaceGetNormalNum().WithMagnitude(1);
+                // The face normal's sign is arbitrary; keep the side we chose at
+                // creation (n0, oriented towards the viewer back then) so the
+                // workplane doesn't flip on an otherwise unchanged regeneration.
+                if(n0.Dot(n1) < 0) n1 = n1.ScaledBy(-1);
+                double d = n0.Dot(n1);
+                Quaternion rot;
+                if(d > 1 - LENGTH_EPS) {
+                    rot = Quaternion::IDENTITY;          // unchanged (e.g. pure translation)
+                } else {
+                    rot = Quaternion::From(n0.Cross(n1).WithMagnitude(1), acos(d));
+                }
+                q      = rot.Times(predef.q);
+                origin = face->FaceGetPointNum();
             } else ssassert(false, "Unexpected workplane subtype");
 
             Entity normal = {};
@@ -480,7 +622,7 @@ void Group::Generate(EntityList *entity, ParamList *param)
 
             Entity point = {};
             point.type = Entity::Type::POINT_N_COPY;
-            point.numPoint = SK.GetEntity(predef.origin)->PointGetNum();
+            point.numPoint = origin;
             point.construction = true;
             point.group = h;
             point.h = h.entity(2);
