@@ -95,6 +95,21 @@ void TextWindow::ScreenChangeDrawingView(int link, uint32_t v) {
     SS.GW.Invalidate();
 }
 
+void TextWindow::ScreenChangeDrawingPaper(int link, uint32_t v) {
+    SS.drawingPaperSize = (SS.drawingPaperSize + 1) % SolveSpaceUI::kNumPaperSizes;
+    SS.GW.Invalidate();
+}
+
+void TextWindow::ScreenChangeDrawingLandscape(int link, uint32_t v) {
+    SS.drawingLandscape = !SS.drawingLandscape;
+    SS.GW.Invalidate();
+}
+
+void TextWindow::ScreenChangeDrawingMargin(int link, uint32_t v) {
+    SS.TW.ShowEditControl(13, ssprintf("%.2f", SS.drawingMargin));
+    SS.TW.edit.meaning = Edit::DRAWING_MARGIN;
+}
+
 void TextWindow::ScreenChangeBackFaces(int link, uint32_t v) {
     SS.drawBackFaces = !SS.drawBackFaces;
     SS.GW.Invalidate(/*clearPersistent=*/true);
@@ -313,6 +328,15 @@ void TextWindow::ShowConfiguration() {
             (SS.drawingViewMask & (1u << i)) ? CHECK_TRUE : CHECK_FALSE,
             SolveSpaceUI::DrawingViewName(i));
     }
+    const char *paperName;
+    SolveSpaceUI::DrawingPaperSize(SS.drawingPaperSize, &paperName, NULL, NULL);
+    Printf(false, "%Ft   paper: %Fd%s %Fl%Ll%f[change]%E", paperName,
+        &ScreenChangeDrawingPaper);
+    Printf(false, "  %Fd%f%Ll%s  landscape%E",
+        &ScreenChangeDrawingLandscape,
+        SS.drawingLandscape ? CHECK_TRUE : CHECK_FALSE);
+    Printf(false, "%Ft   margin: %Fd%@ mm %Fl%Ll%f[change]%E", SS.drawingMargin,
+        &ScreenChangeDrawingMargin);
 
     Printf(false, "");
     Printf(false, "%Ft export canvas size:  "
@@ -448,6 +472,9 @@ bool TextWindow::EditControlDoneForConfiguration(const std::string &s) {
             }
             break;
         }
+        case Edit::DRAWING_MARGIN:
+            SS.drawingMargin = max(0.0, atof(s.c_str()));
+            break;
         case Edit::MAX_SEGMENTS: {
             if(edit.i == 0) {
                 SS.maxSegments = min(1000, max(7, atoi(s.c_str())));

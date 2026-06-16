@@ -489,8 +489,11 @@ public:
     double   exportScale;
     double   exportOffset;
     // Engineering-drawing export: bitmask of which views to include, one bit
-    // per DrawingViewName() index.
+    // per DrawingViewName() index, plus the sheet setup.
     uint32_t drawingViewMask;
+    int      drawingPaperSize;   // index into DrawingPaperSize()
+    bool     drawingLandscape;
+    double   drawingMargin;      // sheet margin, mm
     bool     arcDimDefaultDiameter;
     bool     showFullFilePath;
     bool     fixExportColors;
@@ -624,6 +627,8 @@ public:
     void ExportDrawingViewsTo(const Platform::Path &filename);
     static const int kNumDrawingViews = 8;
     static const char *DrawingViewName(int i);
+    static const int kNumPaperSizes = 6;
+    static void DrawingPaperSize(int i, const char **name, double *w, double *h);
     void ExportSectionTo(const Platform::Path &filename);
     void ExportWireframeCurves(SEdgeList *sel, SBezierList *sbl,
                                VectorFileWriter *out);

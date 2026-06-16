@@ -347,6 +347,7 @@ public:
         FIND_CONSTRAINT_TIMEOUT = 119,
         EXPLODE_DISTANCE      = 120,
         ANIMATION_SPEED       = 121,
+        DRAWING_MARGIN        = 122,
         // For TTF text
         TTF_TEXT              = 300,
         // For the step dimension screen
@@ -472,6 +473,9 @@ public:
     static void ScreenChangeFixExportColors(int link, uint32_t v);
     static void ScreenChangeExportBackgroundColor(int link, uint32_t v);
     static void ScreenChangeDrawingView(int link, uint32_t v);
+    static void ScreenChangeDrawingPaper(int link, uint32_t v);
+    static void ScreenChangeDrawingLandscape(int link, uint32_t v);
+    static void ScreenChangeDrawingMargin(int link, uint32_t v);
     static void ScreenChangeBackFaces(int link, uint32_t v);
     static void ScreenChangeShowContourAreas(int link, uint32_t v);
     static void ScreenChangeCheckClosedContour(int link, uint32_t v);

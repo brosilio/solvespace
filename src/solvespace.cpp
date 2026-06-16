@@ -54,6 +54,9 @@ void SolveSpaceUI::Init() {
     // (indices 0, 3, 4, 6 in DrawingViewName).
     drawingViewMask = settings->ThawInt("DrawingViewMask",
                           (1 << 0) | (1 << 3) | (1 << 4) | (1 << 6));
+    drawingPaperSize = settings->ThawInt("DrawingPaperSize", 1); // A4
+    drawingLandscape = settings->ThawBool("DrawingLandscape", false);
+    drawingMargin    = settings->ThawFloat("DrawingMargin", 8.5);
     // Chord tolerance
     exportChordTol = settings->ThawFloat("ExportChordTolerance", 0.1);
     // Max pwl segments to generate
@@ -247,6 +250,9 @@ void SolveSpaceUI::Exit() {
     // Max pwl segments to generate
     settings->FreezeInt("MaxSegments", (uint32_t)maxSegments);
     settings->FreezeInt("DrawingViewMask", drawingViewMask);
+    settings->FreezeInt("DrawingPaperSize", drawingPaperSize);
+    settings->FreezeBool("DrawingLandscape", drawingLandscape);
+    settings->FreezeFloat("DrawingMargin", drawingMargin);
     // Export Chord tolerance
     settings->FreezeFloat("ExportChordTolerance", (float)exportChordTol);
     // Export Max pwl segments to generate

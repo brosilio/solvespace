@@ -350,6 +350,21 @@ public:
 };
 } // namespace
 
+void SolveSpaceUI::DrawingPaperSize(int i, const char **name, double *w, double *h) {
+    static const struct { const char *n; double w, h; } table[kNumPaperSizes] = {
+        { "A5",      148.0, 210.0   },
+        { "A4",      210.0, 297.0   },
+        { "A3",      297.0, 420.0   },
+        { "Letter",  215.9, 279.4   },
+        { "Legal",   215.9, 355.6   },
+        { "Tabloid", 279.4, 431.8   },
+    };
+    if(i < 0 || i >= kNumPaperSizes) i = 1; // A4
+    if(name) *name = table[i].n;
+    if(w)    *w    = table[i].w;
+    if(h)    *h    = table[i].h;
+}
+
 const char *SolveSpaceUI::DrawingViewName(int i) {
     static const char *names[kNumDrawingViews] = {
         "FRONT", "BACK", "LEFT", "RIGHT", "TOP", "BOTTOM", "ISO", "CURRENT"
@@ -488,7 +503,11 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
     if(maxH < LENGTH_EPS) maxH = 1;
 
     // A4 portrait, two-column grid, uniform (to-scale) factor.
-    double pageW = 210, pageH = 297, margin = 8.5, gap = 6.8;
+    double pageW, pageH;
+    DrawingPaperSize(SS.drawingPaperSize, NULL, &pageW, &pageH);
+    if(SS.drawingLandscape) swap(pageW, pageH);
+    double margin = max(0.0, SS.drawingMargin);
+    double gap = margin * 0.8;
     int cols = (int)ceil(sqrt((double)views.size()));
     if(cols < 1) cols = 1;
     int rows = (int)((views.size() + cols - 1) / cols);
