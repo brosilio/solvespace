@@ -89,6 +89,12 @@ void TextWindow::ScreenChangeExportBackgroundColor(int link, uint32_t v) {
     SS.exportBackgroundColor = !SS.exportBackgroundColor;
 }
 
+void TextWindow::ScreenChangeDrawingView(int link, uint32_t v) {
+    // v is the DrawingViewName() index; toggle that view's bit.
+    SS.drawingViewMask ^= (1u << v);
+    SS.GW.Invalidate();
+}
+
 void TextWindow::ScreenChangeBackFaces(int link, uint32_t v) {
     SS.drawBackFaces = !SS.drawBackFaces;
     SS.GW.Invalidate(/*clearPersistent=*/true);
@@ -297,6 +303,16 @@ void TextWindow::ShowConfiguration() {
     Printf(false, "  %Fd%f%Ll%s  export background color%E",
         &ScreenChangeExportBackgroundColor,
         SS.exportBackgroundColor ? CHECK_TRUE : CHECK_FALSE);
+
+    Printf(false, "");
+    Printf(false, "%Ft engineering drawing views to include:");
+    for(int i = 0; i < SolveSpaceUI::kNumDrawingViews; i++) {
+        Printf(false, "  %Fd%f%Ll%D%s  %s%E",
+            &ScreenChangeDrawingView,
+            (uint32_t)i,
+            (SS.drawingViewMask & (1u << i)) ? CHECK_TRUE : CHECK_FALSE,
+            SolveSpaceUI::DrawingViewName(i));
+    }
 
     Printf(false, "");
     Printf(false, "%Ft export canvas size:  "

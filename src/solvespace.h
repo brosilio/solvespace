@@ -488,6 +488,9 @@ public:
     double   gridSpacing;
     double   exportScale;
     double   exportOffset;
+    // Engineering-drawing export: bitmask of which views to include, one bit
+    // per DrawingViewName() index.
+    uint32_t drawingViewMask;
     bool     arcDimDefaultDiameter;
     bool     showFullFilePath;
     bool     fixExportColors;
@@ -619,6 +622,8 @@ public:
     void ExportMeshAsVrmlTo(FILE *f, const Platform::Path &filename, SMesh *sm);
     void ExportViewOrWireframeTo(const Platform::Path &filename, bool exportWireframe);
     void ExportDrawingViewsTo(const Platform::Path &filename);
+    static const int kNumDrawingViews = 8;
+    static const char *DrawingViewName(int i);
     void ExportSectionTo(const Platform::Path &filename);
     void ExportWireframeCurves(SEdgeList *sel, SBezierList *sbl,
                                VectorFileWriter *out);

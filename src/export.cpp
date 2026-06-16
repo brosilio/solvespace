@@ -350,6 +350,14 @@ public:
 };
 } // namespace
 
+const char *SolveSpaceUI::DrawingViewName(int i) {
+    static const char *names[kNumDrawingViews] = {
+        "FRONT", "BACK", "LEFT", "RIGHT", "TOP", "BOTTOM", "ISO", "CURRENT"
+    };
+    if(i < 0 || i >= kNumDrawingViews) return "";
+    return names[i];
+}
+
 void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
     VectorFileWriter *out = VectorFileWriter::ForFile(filename);
     if(!out) return;
@@ -357,22 +365,30 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
     SS.exportMode = true;
     GenerateAll(Generate::ALL);
 
-    // The views to render, as (right, up) basis vectors; n = right x up points
-    // toward the viewer. Matches the default front view (right=+X, up=+Y).
-    struct ViewDef { const char *name; Vector u, v; };
-    Vector isoU = Vector::From(1, 0, -1).WithMagnitude(1);
-    Vector isoN = Vector::From(1, 1, 1).WithMagnitude(1);
-    Vector isoV = isoN.Cross(isoU).WithMagnitude(1);
-    std::vector<ViewDef> views = {
-        { "FRONT", Vector::From(1, 0, 0),  Vector::From(0, 1, 0)  },
-        { "TOP",   Vector::From(1, 0, 0),  Vector::From(0, 0, -1) },
-        { "RIGHT", Vector::From(0, 0, -1), Vector::From(0, 1, 0)  },
-        { "ISO",   isoU, isoV },
-    };
-
     // Save state we temporarily change to capture geometry in model mm.
     Vector savedRight = SS.GW.projRight, savedUp = SS.GW.projUp;
     double savedScale = SS.exportScale, savedOffset = SS.exportOffset;
+
+    // Standard view orientations as (right, up); n = right x up faces the
+    // viewer. Order matches DrawingViewName()/the drawingViewMask bits.
+    struct ViewDef { const char *name; Vector u, v; };
+    Vector isoU = Vector::From(1, 0, -1).WithMagnitude(1);
+    Vector isoV = Vector::From(1, 1, 1).WithMagnitude(1).Cross(isoU).WithMagnitude(1);
+    ViewDef allViews[kNumDrawingViews] = {
+        { DrawingViewName(0), Vector::From( 1, 0,  0), Vector::From(0, 1,  0) }, // front
+        { DrawingViewName(1), Vector::From(-1, 0,  0), Vector::From(0, 1,  0) }, // back
+        { DrawingViewName(2), Vector::From( 0, 0,  1), Vector::From(0, 1,  0) }, // left
+        { DrawingViewName(3), Vector::From( 0, 0, -1), Vector::From(0, 1,  0) }, // right
+        { DrawingViewName(4), Vector::From( 1, 0,  0), Vector::From(0, 0, -1) }, // top
+        { DrawingViewName(5), Vector::From( 1, 0,  0), Vector::From(0, 0,  1) }, // bottom
+        { DrawingViewName(6), isoU, isoV },                                      // iso
+        { DrawingViewName(7), savedRight, savedUp },                             // current
+    };
+    std::vector<ViewDef> views;
+    for(int i = 0; i < kNumDrawingViews; i++) {
+        if(SS.drawingViewMask & (1u << i)) views.push_back(allViews[i]);
+    }
+    if(views.empty()) views.push_back(allViews[0]);
     SS.exportScale  = 1.0;
     SS.exportOffset = 0.0;
 
@@ -473,7 +489,8 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
 
     // A4 portrait, two-column grid, uniform (to-scale) factor.
     double pageW = 210, pageH = 297, margin = 8.5, gap = 6.8;
-    int cols = 2;
+    int cols = (int)ceil(sqrt((double)views.size()));
+    if(cols < 1) cols = 1;
     int rows = (int)((views.size() + cols - 1) / cols);
     double usableW = pageW - 2 * margin;
     double usableH = pageH - 2 * margin;

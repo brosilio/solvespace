@@ -50,6 +50,10 @@ void SolveSpaceUI::Init() {
     chordTol = settings->ThawFloat("ChordTolerancePct", 0.1);
     // Max pwl segments to generate
     maxSegments = settings->ThawInt("MaxSegments", 20);
+    // Engineering-drawing views: default to front, right, top, iso
+    // (indices 0, 3, 4, 6 in DrawingViewName).
+    drawingViewMask = settings->ThawInt("DrawingViewMask",
+                          (1 << 0) | (1 << 3) | (1 << 4) | (1 << 6));
     // Chord tolerance
     exportChordTol = settings->ThawFloat("ExportChordTolerance", 0.1);
     // Max pwl segments to generate
@@ -242,6 +246,7 @@ void SolveSpaceUI::Exit() {
     settings->FreezeFloat("ChordTolerancePct", (float)chordTol);
     // Max pwl segments to generate
     settings->FreezeInt("MaxSegments", (uint32_t)maxSegments);
+    settings->FreezeInt("DrawingViewMask", drawingViewMask);
     // Export Chord tolerance
     settings->FreezeFloat("ExportChordTolerance", (float)exportChordTol);
     // Export Max pwl segments to generate

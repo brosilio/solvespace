@@ -471,6 +471,7 @@ public:
     static void ScreenChangeShowFullFilePath(int link, uint32_t v);
     static void ScreenChangeFixExportColors(int link, uint32_t v);
     static void ScreenChangeExportBackgroundColor(int link, uint32_t v);
+    static void ScreenChangeDrawingView(int link, uint32_t v);
     static void ScreenChangeBackFaces(int link, uint32_t v);
     static void ScreenChangeShowContourAreas(int link, uint32_t v);
     static void ScreenChangeCheckClosedContour(int link, uint32_t v);
