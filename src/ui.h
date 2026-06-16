@@ -91,6 +91,7 @@ enum class Command : uint32_t {
     EXPORT_MESH,
     EXPORT_SURFACES,
     EXPORT_VIEW,
+    EXPORT_DRAWING,
     EXPORT_SECTION,
     EXPORT_WIREFRAME,
     IMPORT,

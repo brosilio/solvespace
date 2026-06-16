@@ -764,6 +764,21 @@ void SolveSpaceUI::MenuFile(Command id) {
             break;
         }
 
+        case Command::EXPORT_DRAWING: {
+            Platform::FileDialogRef dialog = Platform::CreateSaveFileDialog(SS.GW.window);
+            dialog->AddFilters(Platform::VectorFileFilters);
+            dialog->ThawChoices(settings, "ExportDrawing");
+            dialog->SuggestFilename(SS.saveFile);
+            if(!dialog->RunModal()) break;
+            dialog->FreezeChoices(settings, "ExportDrawing");
+
+            SS.ExportDrawingViewsTo(dialog->GetFilename());
+            if (SS.OnSaveFinished) {
+                SS.OnSaveFinished(dialog->GetFilename(), false, false);
+            }
+            break;
+        }
+
         case Command::EXPORT_WIREFRAME: {
             Platform::FileDialogRef dialog = Platform::CreateSaveFileDialog(SS.GW.window);
             dialog->AddFilters(Platform::Vector3dFileFilters);

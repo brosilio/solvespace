@@ -50,6 +50,7 @@ const MenuEntry Menu[] = {
 { 1,  NULL,                             Command::NONE,             0,       KN, NULL   },
 { 1, N_("Export &Image..."),            Command::EXPORT_IMAGE,     0,       KN, mFile  },
 { 1, N_("Export 2d &View..."),          Command::EXPORT_VIEW,      0,       KN, mFile  },
+{ 1, N_("Export Engineering &Drawing..."), Command::EXPORT_DRAWING, 0,       KN, mFile  },
 { 1, N_("Export 2d &Section..."),       Command::EXPORT_SECTION,   0,       KN, mFile  },
 { 1, N_("Export 3d &Wireframe..."),     Command::EXPORT_WIREFRAME, 0,       KN, mFile  },
 { 1, N_("Export Triangle &Mesh..."),    Command::EXPORT_MESH,      0,       KN, mFile  },

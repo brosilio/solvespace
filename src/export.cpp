@@ -311,6 +311,223 @@ void SolveSpaceUI::ExportWireframeCurves(SEdgeList *sel, SBezierList *sbl,
     sblss.Clear();
 }
 
+//-----------------------------------------------------------------------------
+// Engineering-drawing export (phase 1): render a fixed set of standard views
+// (front/top/right/iso) of the model onto a single A4 sheet, laid out in a
+// grid at one common scale, as hidden-line views. Reference dimensions that
+// the user added in the model are included. No title block yet.
+//-----------------------------------------------------------------------------
+namespace {
+// A VectorFileWriter that captures the projected 2D geometry handed to it
+// instead of writing a file, so several views can be repositioned onto one
+// sheet at a common scale.
+class CapturedView : public VectorFileWriter {
+public:
+    struct Stroke {
+        RgbaColor            strokeRgb;
+        double               lineWidth;
+        bool                 filled;
+        RgbaColor            fillRgb;
+        hStyle               hs;
+        std::vector<SBezier> beziers;
+    };
+    std::vector<Stroke> strokes;
+    Stroke             *cur = nullptr;
+
+    void StartPath(RgbaColor strokeRgb, double lineWidth, bool filled,
+                   RgbaColor fillRgb, hStyle hs) override {
+        strokes.push_back({ strokeRgb, lineWidth, filled, fillRgb, hs, {} });
+        cur = &strokes.back();
+    }
+    void FinishPath(RgbaColor, double, bool, RgbaColor, hStyle) override { cur = nullptr; }
+    void Bezier(SBezier *sb) override { if(cur) cur->beziers.push_back(*sb); }
+    void Triangle(STriangle *) override {}
+    void Background(RgbaColor) override {}
+    void StartFile() override {}
+    void FinishAndCloseFile() override {}
+    bool HasCanvasSize() const override { return false; }
+    bool CanOutputMesh() const override { return false; }
+};
+} // namespace
+
+void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
+    VectorFileWriter *out = VectorFileWriter::ForFile(filename);
+    if(!out) return;
+
+    SS.exportMode = true;
+    GenerateAll(Generate::ALL);
+
+    // The views to render, as (right, up) basis vectors; n = right x up points
+    // toward the viewer. Matches the default front view (right=+X, up=+Y).
+    struct ViewDef { const char *name; Vector u, v; };
+    Vector isoU = Vector::From(1, 0, -1).WithMagnitude(1);
+    Vector isoN = Vector::From(1, 1, 1).WithMagnitude(1);
+    Vector isoV = isoN.Cross(isoU).WithMagnitude(1);
+    std::vector<ViewDef> views = {
+        { "FRONT", Vector::From(1, 0, 0),  Vector::From(0, 1, 0)  },
+        { "TOP",   Vector::From(1, 0, 0),  Vector::From(0, 0, -1) },
+        { "RIGHT", Vector::From(0, 0, -1), Vector::From(0, 1, 0)  },
+        { "ISO",   isoU, isoV },
+    };
+
+    // Save state we temporarily change to capture geometry in model mm.
+    Vector savedRight = SS.GW.projRight, savedUp = SS.GW.projUp;
+    double savedScale = SS.exportScale, savedOffset = SS.exportOffset;
+    SS.exportScale  = 1.0;
+    SS.exportOffset = 0.0;
+
+    std::vector<CapturedView> captured(views.size());
+    Group *g = SK.GetGroup(SS.GW.activeGroup);
+
+    // Dimension text is drawn at Style::TextHeight (in model units for MM
+    // styles). Override the constraint style so the text is a fixed fraction
+    // of the part; since the layout scale below is ~cell/part-size, this lands
+    // dimensions at a roughly constant, legible size on the sheet regardless of
+    // part size or current zoom. (A proper sheet-relative size belongs with the
+    // page/scale settings in phase 2.)
+    Style *cstyle = Style::Get({ Style::CONSTRAINT });
+    double          savedTextHeight   = cstyle->textHeight;
+    Style::UnitsAs  savedTextHeightAs = cstyle->textHeightAs;
+    g->GenerateDisplayItems();
+    if(!g->displayMesh.IsEmpty()) {
+        Vector bmax, bmin;
+        g->displayMesh.GetBounding(&bmax, &bmin);
+        Vector d = bmax.Minus(bmin);
+        double extent = max(d.x, max(d.y, d.z));
+        if(extent > LENGTH_EPS) {
+            cstyle->textHeight   = 0.03 * extent;
+            cstyle->textHeightAs = Style::UnitsAs::MM;
+        }
+    }
+
+    for(size_t i = 0; i < views.size(); i++) {
+        Vector u = views[i].u, v = views[i].v, n = u.Cross(v);
+        SS.GW.projRight = u;
+        SS.GW.projUp    = v;
+        g->GenerateDisplayItems();
+
+        SMesh *sm = &(g->displayMesh);
+        if(sm->IsEmpty()) sm = NULL;
+
+        SEdgeList edges = {};
+        SBezierList beziers = {};
+        for(auto &entity : SK.entity) {
+            Entity *e = &entity;
+            if(!e->IsVisible()) continue;
+            e->GenerateEdges(&edges);
+        }
+        if(SS.GW.showEdges) {
+            g->displayOutlines.ListTaggedInto(&edges, Style::SOLID_EDGE);
+        }
+        // Reference dimensions / constraints, projected into this view.
+        if(SS.GW.showConstraints != GraphicsWindow::ShowConstraintMode::SCM_NOSHOW) {
+            GetEdgesCanvas canvas = {};
+            canvas.camera = SS.GW.GetCamera();
+            canvas.edges  = &edges;
+            for(Constraint &c : SK.constraint) {
+                c.Draw(Constraint::DrawAs::DEFAULT, &canvas);
+            }
+            canvas.Clear();
+        }
+
+        // Orthographic projection (cameraTan = 0); occlusion against the mesh
+        // gives proper hidden-line treatment.
+        Vector origin = Vector::From(0, 0, 0);
+        captured[i].SetModelviewProjection(u, v, n, origin, 0.0, SS.exportScale);
+        ExportLinesAndMesh(&edges, &beziers, sm, u, v, n, origin, 0.0, &captured[i]);
+
+        edges.Clear();
+        beziers.Clear();
+    }
+
+    // Restore view state and the constraint style.
+    SS.GW.projRight = savedRight;
+    SS.GW.projUp    = savedUp;
+    SS.exportScale  = savedScale;
+    SS.exportOffset = savedOffset;
+    cstyle->textHeight   = savedTextHeight;
+    cstyle->textHeightAs = savedTextHeightAs;
+    g->GenerateDisplayItems();
+
+    // Bounding box of each view, and the largest extents (for a common scale).
+    struct Box { Vector min, max; };
+    std::vector<Box> boxes(views.size());
+    double maxW = 0, maxH = 0;
+    for(size_t i = 0; i < views.size(); i++) {
+        Vector mn = Vector::From(VERY_POSITIVE, VERY_POSITIVE, 0);
+        Vector mx = Vector::From(VERY_NEGATIVE, VERY_NEGATIVE, 0);
+        bool any = false;
+        for(auto &st : captured[i].strokes) {
+            for(auto &sb : st.beziers) {
+                for(int k = 0; k <= sb.deg; k++) { sb.ctrl[k].MakeMaxMin(&mx, &mn); any = true; }
+            }
+        }
+        if(!any) { mn = Vector::From(0, 0, 0); mx = Vector::From(0, 0, 0); }
+        boxes[i].min = mn;
+        boxes[i].max = mx;
+        maxW = max(maxW, mx.x - mn.x);
+        maxH = max(maxH, mx.y - mn.y);
+    }
+    if(maxW < LENGTH_EPS) maxW = 1;
+    if(maxH < LENGTH_EPS) maxH = 1;
+
+    // A4 portrait, two-column grid, uniform (to-scale) factor.
+    double pageW = 210, pageH = 297, margin = 8.5, gap = 6.8;
+    int cols = 2;
+    int rows = (int)((views.size() + cols - 1) / cols);
+    double usableW = pageW - 2 * margin;
+    double usableH = pageH - 2 * margin;
+    double cellW = usableW / cols - gap;
+    double cellH = usableH / rows - gap;
+    double scale = min(cellW / maxW, cellH / maxH);
+
+    out->ptMin = Vector::From(0, 0, 0);
+    out->ptMax = Vector::From(pageW, pageH, 0);
+    out->StartFile();
+
+    for(size_t i = 0; i < views.size(); i++) {
+        int col = (int)(i % cols);
+        int row = (int)(i / cols);
+        double cellX = margin + col * (usableW / cols);
+        double cellY = pageH - margin - (row + 1) * (usableH / rows);
+        double w = (boxes[i].max.x - boxes[i].min.x) * scale;
+        double h = (boxes[i].max.y - boxes[i].min.y) * scale;
+        double ox = cellX + gap / 2 + (cellW - w) / 2 - boxes[i].min.x * scale;
+        double oy = cellY + gap / 2 + (cellH - h) / 2 - boxes[i].min.y * scale;
+
+        for(auto &st : captured[i].strokes) {
+            out->StartPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
+            for(auto &sb : st.beziers) {
+                SBezier t = sb;
+                for(int k = 0; k <= t.deg; k++) {
+                    t.ctrl[k] = Vector::From(sb.ctrl[k].x * scale + ox,
+                                             sb.ctrl[k].y * scale + oy, 0);
+                }
+                out->Bezier(&t);
+            }
+            out->FinishPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
+        }
+
+        // View name label, centered in the gap below the cell content.
+        double cellFullW = usableW / cols;
+        double lh = 2.8;
+        std::string label = views[i].name;
+        double lw = VectorFont::Builtin()->GetWidth(lh, label);
+        Vector lo = Vector::From(cellX + (cellFullW - lw) / 2, cellY + 0.6, 0);
+        RgbaColor black = RGBi(0, 0, 0);
+        hStyle hcs = { Style::CONSTRAINT };
+        out->StartPath(black, 0.25, false, black, hcs);
+        VectorFont::Builtin()->Trace(lh, lo, Vector::From(1, 0, 0), Vector::From(0, 1, 0),
+            label, [&](Vector a, Vector b) {
+                SBezier sb = SBezier::From(a, b);
+                out->Bezier(&sb);
+            });
+        out->FinishPath(black, 0.25, false, black, hcs);
+    }
+
+    out->FinishAndCloseFile();
+}
+
 void SolveSpaceUI::ExportLinesAndMesh(SEdgeList *sel, SBezierList *sbl, SMesh *sm,
                                       Vector u, Vector v, Vector n,
                                       Vector origin, double cameraTan,

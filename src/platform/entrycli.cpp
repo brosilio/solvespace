@@ -272,6 +272,21 @@ static bool RunCommand(const std::vector<std::string> args) {
 
             SS.ExportViewOrWireframeTo(output, /*exportWireframe=*/false);
         };
+    } else if(args[1] == "export-drawing") {
+        for(size_t argn = 2; argn < args.size(); argn++) {
+            if(!(ParseInputFile(argn) ||
+                 ParseOutputPattern(argn) ||
+                 ParseChordTolerance(argn))) {
+                fprintf(stderr, "Unrecognized option '%s'.\n", args[argn].c_str());
+                return false;
+            }
+        }
+
+        runner = [&](const Platform::Path &output) {
+            SS.exportChordTol = chordTol;
+
+            SS.ExportDrawingViewsTo(output);
+        };
     } else if(args[1] == "export-wireframe") {
         for(size_t argn = 2; argn < args.size(); argn++) {
             if(!(ParseInputFile(argn) ||
