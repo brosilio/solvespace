@@ -347,6 +347,12 @@ void TextWindow::ScreenChangeHelixPitch(int link, uint32_t v) {
     SS.TW.edit.meaning = Edit::HELIX_PITCH;
     SS.TW.edit.group.v = v;
 }
+void TextWindow::ScreenChangeTiltAngle(int link, uint32_t v) {
+    Group *g = SK.GetGroup(SS.TW.shown.group);
+    SS.TW.ShowEditControl(13, ssprintf("%.3f", g->valA * 180 / PI));
+    SS.TW.edit.meaning = Edit::WORKPLANE_TILT_ANGLE;
+    SS.TW.edit.group.v = v;
+}
 void TextWindow::ScreenChangePitchOption(int link, uint32_t v) {
     Group *g = SK.GetGroup(SS.TW.shown.group);
     if(g->valB == 0.0) {
@@ -470,6 +476,11 @@ void TextWindow::ShowGroupInfo() {
         Printf(true, " %Ftsketch in 3d%E");
     } else if(g->type == Group::Type::DRAWING_WORKPLANE) {
         Printf(true, " %Ftsketch in new workplane%E");
+        if(g->subtype == Group::Subtype::WORKPLANE_BY_FACE_TILT) {
+            Printf(false, "%Ba   %Fttilted off face by%E %@° %Fl%Ll%f%D[change]%E",
+                g->valA * 180 / PI,
+                &TextWindow::ScreenChangeTiltAngle, g->h.v);
+        }
     } else {
         Printf(true, "???");
     }
@@ -895,6 +906,15 @@ void TextWindow::EditControlDone(std::string s) {
                 double ev = e->Eval();
                 Group *g = SK.GetGroup(edit.group);
                 g->valB = ev * SS.MmPerUnit();
+                SS.MarkGroupDirty(g->h);
+            }
+            break;
+
+        case Edit::WORKPLANE_TILT_ANGLE:  // degrees, stored in valA as radians
+            if(Expr *e = Expr::From(s, /*popUpError=*/true)) {
+                SS.UndoRemember();
+                Group *g = SK.GetGroup(edit.group);
+                g->valA = e->Eval() * PI / 180;
                 SS.MarkGroupDirty(g->h);
             }
             break;

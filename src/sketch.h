@@ -225,6 +225,7 @@ public:
         WORKPLANE_BY_POINT_NORMAL  = 6002,
         //WORKPLANE_BY_POINT_FACE    = 6003,
         WORKPLANE_BY_FACE          = 6004,
+        WORKPLANE_BY_FACE_TILT     = 6005,
         // For extrudes, translates, and rotates
         ONE_SIDED                  = 7000,
         TWO_SIDED                  = 7001,

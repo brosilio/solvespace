@@ -215,6 +215,11 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
                     } else if(wrkplg->subtype == Subtype::WORKPLANE_BY_FACE) {
                         g.predef.q = wrkplg->predef.q;
                         g.predef.entityB = wrkplg->predef.entityB;
+                    } else if(wrkplg->subtype == Subtype::WORKPLANE_BY_FACE_TILT) {
+                        g.predef.q = wrkplg->predef.q;
+                        g.predef.entityB = wrkplg->predef.entityB;
+                        g.predef.entityC = wrkplg->predef.entityC;
+                        g.valA = wrkplg->valA;
                     } else ssassert(false, "Unexpected workplane subtype");
                 }
             } else if(gs.anyNormals == 1 && gs.points == 1 && gs.n == 2) {
@@ -272,6 +277,40 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
 
                     g.predef.q = Quaternion::From(u, v);
                 }
+            } else if(gs.faces == 1 && gs.lineSegments == 1 &&
+                      (gs.n == 2 || (gs.points == 1 && gs.n == 3))) {
+                // A face plus an edge (and optionally a point) builds a
+                // workplane tilted off the face by an editable angle, hinged
+                // about the edge direction. Used for drilling holes into a
+                // solid at an angle: the hole axis is the workplane normal, so
+                // the cut bottom comes out perpendicular to the axis.
+                g.subtype = Subtype::WORKPLANE_BY_FACE_TILT;
+
+                hEntity faceH = gs.face[0];
+                hEntity edgeH = (gs.entity[0] == faceH) ? gs.entity[1] : gs.entity[0];
+                Entity *face = SK.GetEntity(faceH);
+
+                g.predef.entityB = faceH;   // base plane (face normal, tracked)
+                g.predef.entityC = edgeH;   // hinge axis direction
+                // Origin: the selected point, else an endpoint of the edge.
+                g.predef.origin  = (gs.points == 1) ? gs.point[0]
+                                                    : SK.GetEntity(edgeH)->point[0];
+
+                // Snapshot the base frame. Align U with the hinge edge so the
+                // plane tilts cleanly about that edge, with no arbitrary roll
+                // from the viewing angle at creation. Generation rotates this
+                // to follow the face, then tilts it about the same edge.
+                Vector n = face->FaceGetNormalNum().WithMagnitude(1);
+                Vector camn = SS.GW.projRight.Cross(SS.GW.projUp);
+                if(n.Dot(camn) < 0) n = n.ScaledBy(-1);
+                Vector u = SK.GetEntity(edgeH)->VectorGetNum();
+                u = u.Minus(n.ScaledBy(u.Dot(n)));   // project into the face plane
+                if(u.Magnitude() < LENGTH_EPS) u = n.Normal(0);
+                u = u.WithMagnitude(1);
+                Vector v = n.Cross(u).WithMagnitude(1);
+
+                g.predef.q = Quaternion::From(u, v);
+                g.valA     = 30 * PI / 180;   // default tilt, editable in properties
             } else {
                 Error(_("Bad selection for new sketch in workplane. This "
                         "group can be created with:\n\n"
@@ -281,6 +320,8 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
                         "    * a point and a normal (through the point, "
                         "orthogonal to the normal)\n"
                         "    * a face (coincident with the face)\n"
+                        "    * a face and an edge (tilted off the face by an "
+                        "angle, hinged about the edge)\n"
                         "    * a workplane (copy of the workplane)\n"));
                 return;
             }
@@ -414,7 +455,19 @@ void Group::MenuGroup(Command id, Platform::Path linkFile) {
             g.opA = SS.GW.activeGroup;
             g.valA = 3;
             g.subtype = Subtype::ONE_SIDED;
-            g.predef.entityB = SS.GW.ActiveWorkplane();
+            // The step direction is confined to a plane (the offset is kept
+            // parallel to it; see GenerateEquations). If the user selected a
+            // workplane or a face, confine to that — e.g. to march angled
+            // holes along a panel face, so the copies stay on the surface
+            // instead of drifting along the tilted sketch plane. Otherwise
+            // fall back to the active workplane, as before.
+            if(gs.workplanes == 1 && gs.n == 1) {
+                g.predef.entityB = gs.entity[0];
+            } else if(gs.faces == 1 && gs.n == 1) {
+                g.predef.entityB = gs.face[0];
+            } else {
+                g.predef.entityB = SS.GW.ActiveWorkplane();
+            }
             g.activeWorkplane = SS.GW.ActiveWorkplane();
             g.name = C_("group-name", "translate");
             break;
@@ -609,6 +662,26 @@ void Group::Generate(EntityList *entity, ParamList *param)
                 }
                 q      = rot.Times(predef.q);
                 origin = face->FaceGetPointNum();
+            } else if(subtype == Subtype::WORKPLANE_BY_FACE_TILT) {
+                // Like WORKPLANE_BY_FACE, but additionally tilted by the stored
+                // angle (valA) about the hinge edge's direction.
+                Entity *face = SK.GetEntity(predef.entityB);
+                Vector n0 = predef.q.RotationN();
+                Vector n1 = face->FaceGetNormalNum().WithMagnitude(1);
+                if(n0.Dot(n1) < 0) n1 = n1.ScaledBy(-1);
+                double d = n0.Dot(n1);
+                Quaternion rot;
+                if(d > 1 - LENGTH_EPS) {
+                    rot = Quaternion::IDENTITY;
+                } else {
+                    rot = Quaternion::From(n0.Cross(n1).WithMagnitude(1), acos(d));
+                }
+                Quaternion base = rot.Times(predef.q);
+
+                Vector axis = SK.GetEntity(predef.entityC)->VectorGetNum().WithMagnitude(1);
+                Quaternion tilt = Quaternion::From(axis, valA);
+                q      = tilt.Times(base);
+                origin = SK.GetEntity(predef.origin)->PointGetNum();
             } else ssassert(false, "Unexpected workplane subtype");
 
             Entity normal = {};
@@ -991,12 +1064,14 @@ void Group::GenerateEquations(IdList<Equation,hEquation> *l) {
         }
     } else if(type == Type::TRANSLATE) {
         if(predef.entityB != Entity::FREE_IN_3D) {
-            Entity *w = SK.GetEntity(predef.entityB);
-            ExprVector n = w->Normal()->NormalExprsN();
+            Entity *e = SK.GetEntity(predef.entityB);
+            // The confinement plane may be given as a workplane or a face.
+            ExprVector n = e->IsFace() ? e->FaceGetNormalExprs()
+                                       : e->Normal()->NormalExprsN();
             ExprVector trans;
             trans = ExprVector::From(h.param(0), h.param(1), h.param(2));
 
-            // The translation vector is parallel to the workplane
+            // The translation vector is parallel to that plane.
             AddEq(l, trans.Dot(n), 0);
         }
     }

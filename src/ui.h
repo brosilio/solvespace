@@ -322,6 +322,7 @@ public:
         GROUP_SCALE           = 3,
         GROUP_COLOR           = 4,
         GROUP_OPACITY         = 5,
+        WORKPLANE_TILT_ANGLE  = 6,
         // For the configuration screen
         LIGHT_DIRECTION       = 100,
         LIGHT_INTENSITY       = 101,
@@ -508,6 +509,7 @@ public:
     static void ScreenChangeGroupScale(int link, uint32_t v);
     static void ScreenChangeHelixPitch(int link, uint32_t v);
     static void ScreenChangePitchOption(int link, uint32_t v);
+    static void ScreenChangeTiltAngle(int link, uint32_t v);
     static void ScreenChangeLightDirection(int link, uint32_t v);
     static void ScreenChangeLightIntensity(int link, uint32_t v);
     static void ScreenChangeLightAmbient(int link, uint32_t v);
