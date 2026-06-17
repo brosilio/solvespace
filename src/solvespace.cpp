@@ -57,6 +57,7 @@ void SolveSpaceUI::Init() {
     drawingPaperSize = settings->ThawInt("DrawingPaperSize", 1); // A4
     drawingLandscape = settings->ThawBool("DrawingLandscape", false);
     drawingMargin    = settings->ThawFloat("DrawingMargin", 8.5);
+    drawingPerPage   = settings->ThawBool("DrawingPerPage", false);
     // Chord tolerance
     exportChordTol = settings->ThawFloat("ExportChordTolerance", 0.1);
     // Max pwl segments to generate
@@ -253,6 +254,7 @@ void SolveSpaceUI::Exit() {
     settings->FreezeInt("DrawingPaperSize", drawingPaperSize);
     settings->FreezeBool("DrawingLandscape", drawingLandscape);
     settings->FreezeFloat("DrawingMargin", drawingMargin);
+    settings->FreezeBool("DrawingPerPage", drawingPerPage);
     // Export Chord tolerance
     settings->FreezeFloat("ExportChordTolerance", (float)exportChordTol);
     // Export Max pwl segments to generate

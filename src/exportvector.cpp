@@ -833,6 +833,20 @@ void EpsFileWriter::FinishAndCloseFile() {
 // a correct xref table.
 //-----------------------------------------------------------------------------
 void PdfFileWriter::StartFile() {
+    // Page content is buffered (see the class comment); nothing is written to
+    // the file until FinishAndCloseFile, when all page lengths are known.
+    pages.clear();
+    body.clear();
+    prevPt = {VERY_POSITIVE, VERY_POSITIVE, VERY_POSITIVE};
+}
+
+void PdfFileWriter::NewPage() {
+    pages.push_back(body);
+    body.clear();
+    prevPt = {VERY_POSITIVE, VERY_POSITIVE, VERY_POSITIVE};
+}
+
+void PdfFileWriter::FinishAndCloseFile() {
     if((ptMax.x - ptMin.x) > 200*25.4 ||
        (ptMax.y - ptMin.y) > 200*25.4)
     {
@@ -840,130 +854,68 @@ void PdfFileWriter::StartFile() {
                   "reject this file."));
     }
 
-    fprintf(f,
-"%%PDF-1.1\r\n"
-"%%%c%c%c%c\r\n",
-        0xe2, 0xe3, 0xcf, 0xd3);
+    pages.push_back(body);
+    body.clear();
+    int nPages = (int)pages.size();
 
-    xref[1] = (uint32_t)ftell(f);
-    fprintf(f,
-"1 0 obj\r\n"
-"  << /Type /Catalog\r\n"
-"     /Outlines 2 0 R\r\n"
-"     /Pages 3 0 R\r\n"
-"  >>\r\n"
-"endobj\r\n");
+    // Object layout: 1 catalog, 2 pages, 3 procset, 4 font, 5 info, then for
+    // each page a Page object (6+2i) and a content stream (7+2i).
+    int nObj = 5 + 2*nPages;
+    std::vector<long> xref(nObj + 1, 0);
 
-    xref[2] = (uint32_t)ftell(f);
-    fprintf(f,
-"2 0 obj\r\n"
-"  << /Type /Outlines\r\n"
-"     /Count 0\r\n"
-"  >>\r\n"
-"endobj\r\n");
+    fprintf(f, "%%PDF-1.1\r\n%%%c%c%c%c\r\n", 0xe2, 0xe3, 0xcf, 0xd3);
 
-    xref[3] = (uint32_t)ftell(f);
-    fprintf(f,
-"3 0 obj\r\n"
-"  << /Type /Pages\r\n"
-"     /Kids [4 0 R]\r\n"
-"     /Count 1\r\n"
-"  >>\r\n"
-"endobj\r\n");
+    xref[1] = ftell(f);
+    fprintf(f, "1 0 obj\r\n  << /Type /Catalog /Pages 2 0 R >>\r\nendobj\r\n");
 
-    xref[4] = (uint32_t)ftell(f);
-    fprintf(f,
-"4 0 obj\r\n"
-"  << /Type /Page\r\n"
-"     /Parent 3 0 R\r\n"
-"     /MediaBox [0 0 %.3f %.3f]\r\n"
-"     /Contents 5 0 R\r\n"
-"     /Resources << /ProcSet 7 0 R\r\n"
-"                   /Font << /F1 8 0 R >>\r\n"
-"                >>\r\n"
-"  >>\r\n"
-"endobj\r\n",
-            MmToPts(ptMax.x - ptMin.x),
-            MmToPts(ptMax.y - ptMin.y));
+    xref[2] = ftell(f);
+    fprintf(f, "2 0 obj\r\n  << /Type /Pages /Kids [");
+    for(int i = 0; i < nPages; i++) fprintf(f, "%d 0 R ", 6 + 2*i);
+    fprintf(f, "] /Count %d >>\r\nendobj\r\n", nPages);
 
-    xref[5] = (uint32_t)ftell(f);
-    fprintf(f,
-"5 0 obj\r\n"
-"  << /Length 6 0 R >>\r\n"
-"stream\r\n");
-    bodyStart = (uint32_t)ftell(f);
-}
+    xref[3] = ftell(f);
+    fprintf(f, "3 0 obj\r\n  [/PDF /Text]\r\nendobj\r\n");
 
-void PdfFileWriter::FinishAndCloseFile() {
-    uint32_t bodyEnd = (uint32_t)ftell(f);
+    xref[4] = ftell(f);
+    fprintf(f, "4 0 obj\r\n  << /Type /Font /Subtype /Type1 /Name /F1"
+               " /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\r\nendobj\r\n");
 
-    fprintf(f,
-"endstream\r\n"
-"endobj\r\n");
+    xref[5] = ftell(f);
+    fprintf(f, "5 0 obj\r\n  << /Creator (SolveSpace) >>\r\nendobj\r\n");
 
-    xref[6] = (uint32_t)ftell(f);
-    fprintf(f,
-"6 0 obj\r\n"
-"  %d\r\n"
-"endobj\r\n",
-        bodyEnd - bodyStart);
-
-    xref[7] = (uint32_t)ftell(f);
-    fprintf(f,
-"7 0 obj\r\n"
-"  [/PDF /Text]\r\n"
-"endobj\r\n");
-
-    xref[8] = (uint32_t)ftell(f);
-    fprintf(f,
-"8 0 obj\r\n"
-"  << /Type /Font\r\n"
-"     /Subtype /Type1\r\n"
-"     /Name /F1\r\n"
-"     /BaseFont /Helvetica\r\n"
-"     /Encoding /WinAnsiEncoding\r\n"
-"  >>\r\n"
-"endobj\r\n");
-
-    xref[9] = (uint32_t)ftell(f);
-    fprintf(f,
-"9 0 obj\r\n"
-"  << /Creator (SolveSpace)\r\n"
-"  >>\r\n");
-
-    uint32_t xrefStart = (uint32_t)ftell(f);
-    fprintf(f,
-"xref\r\n"
-"0 10\r\n"
-"0000000000 65535 f\r\n");
-
-    int i;
-    for(i = 1; i <= 9; i++) {
-        fprintf(f, "%010d %05d n\r\n", xref[i], 0);
+    double w = MmToPts(ptMax.x - ptMin.x), h = MmToPts(ptMax.y - ptMin.y);
+    for(int i = 0; i < nPages; i++) {
+        int pageObj = 6 + 2*i, contentObj = 7 + 2*i;
+        xref[pageObj] = ftell(f);
+        fprintf(f, "%d 0 obj\r\n  << /Type /Page /Parent 2 0 R"
+                   " /MediaBox [0 0 %.3f %.3f] /Contents %d 0 R"
+                   " /Resources << /ProcSet 3 0 R /Font << /F1 4 0 R >> >> >>\r\nendobj\r\n",
+            pageObj, w, h, contentObj);
+        xref[contentObj] = ftell(f);
+        fprintf(f, "%d 0 obj\r\n  << /Length %d >>\r\nstream\r\n",
+            contentObj, (int)pages[i].size());
+        fwrite(pages[i].data(), 1, pages[i].size(), f);
+        fprintf(f, "\r\nendstream\r\nendobj\r\n");
     }
 
+    long xrefStart = ftell(f);
+    fprintf(f, "xref\r\n0 %d\r\n0000000000 65535 f\r\n", nObj + 1);
+    for(int i = 1; i <= nObj; i++) fprintf(f, "%010ld 00000 n\r\n", xref[i]);
     fprintf(f,
-"\r\n"
-"trailer\r\n"
-"  << /Size 10\r\n"
-"     /Root 1 0 R\r\n"
-"     /Info 9 0 R\r\n"
-"  >>\r\n"
-"startxref\r\n"
-"%d\r\n"
-"%%%%EOF\r\n",
-        xrefStart);
+"\r\ntrailer\r\n  << /Size %d /Root 1 0 R /Info 5 0 R >>\r\n"
+"startxref\r\n%ld\r\n%%%%EOF\r\n",
+        nObj + 1, xrefStart);
 
     fclose(f);
-
 }
+
 
 void PdfFileWriter::Background(RgbaColor color) {
     double width  = ptMax.x - ptMin.x;
     double height = ptMax.y - ptMin.y;
     double sw     = max(width, height) / 1000;
 
-    fprintf(f,
+    body += ssprintf(
 "1 J 1 j\r\n"
 "%.3f %.3f %.3f RG\r\n"
 "%.3f %.3f %.3f rg\r\n"
@@ -988,14 +940,14 @@ void PdfFileWriter::StartPath(RgbaColor strokeRgb, double lineWidth,
     StipplePattern pattern = Style::PatternType(hs);
     double stippleScale = MmToPts(Style::StippleScaleMm(hs));
 
-    fprintf(f, "1 J 1 j " // round endcaps and joins
+    body += ssprintf("1 J 1 j " // round endcaps and joins
                "%.3f w [%s] 0 d "
                "%.3f %.3f %.3f RG\r\n",
         MmToPts(lineWidth),
         MakeStipplePattern(pattern, stippleScale, ' ').c_str(),
         strokeRgb.redF(), strokeRgb.greenF(), strokeRgb.blueF());
     if(filled) {
-        fprintf(f, "%.3f %.3f %.3f rg\r\n",
+        body += ssprintf("%.3f %.3f %.3f rg\r\n",
             fillRgb.redF(), fillRgb.greenF(), fillRgb.blueF());
     }
 
@@ -1005,15 +957,15 @@ void PdfFileWriter::FinishPath(RgbaColor strokeRgb, double lineWidth,
                                bool filled, RgbaColor fillRgb, hStyle hs)
 {
     if(filled) {
-        fprintf(f, "b\r\n");
+        body += "b\r\n";
     } else {
-        fprintf(f, "S\r\n");
+        body += "S\r\n";
     }
 }
 
 void PdfFileWriter::MaybeMoveTo(Vector st, Vector fi) {
     if(!prevPt.Equals(st)) {
-        fprintf(f, "%.3f %.3f m\r\n",
+        body += ssprintf("%.3f %.3f m\r\n",
             MmToPts(st.x - ptMin.x), MmToPts(st.y - ptMin.y));
     }
     prevPt = fi;
@@ -1022,7 +974,7 @@ void PdfFileWriter::MaybeMoveTo(Vector st, Vector fi) {
 void PdfFileWriter::Triangle(STriangle *tr) {
     double sw = max(ptMax.x - ptMin.x, ptMax.y - ptMin.y) / 1000;
 
-    fprintf(f,
+    body += ssprintf(
 "1 J 1 j\r\n"
 "%.3f %.3f %.3f RG\r\n"
 "%.3f %.3f %.3f rg\r\n"
@@ -1042,12 +994,12 @@ void PdfFileWriter::Triangle(STriangle *tr) {
 void PdfFileWriter::Bezier(SBezier *sb) {
     if(sb->deg == 1) {
         MaybeMoveTo(sb->ctrl[0], sb->ctrl[1]);
-        fprintf(f,
+        body += ssprintf(
 "%.3f %.3f l\r\n",
             MmToPts(sb->ctrl[1].x - ptMin.x), MmToPts(sb->ctrl[1].y - ptMin.y));
     } else if(sb->deg == 3 && !sb->IsRational()) {
         MaybeMoveTo(sb->ctrl[0], sb->ctrl[3]);
-        fprintf(f,
+        body += ssprintf(
 "%.3f %.3f %.3f %.3f %.3f %.3f c\r\n",
             MmToPts(sb->ctrl[1].x - ptMin.x), MmToPts(sb->ctrl[1].y - ptMin.y),
             MmToPts(sb->ctrl[2].x - ptMin.x), MmToPts(sb->ctrl[2].y - ptMin.y),

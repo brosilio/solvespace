@@ -110,6 +110,11 @@ void TextWindow::ScreenChangeDrawingMargin(int link, uint32_t v) {
     SS.TW.edit.meaning = Edit::DRAWING_MARGIN;
 }
 
+void TextWindow::ScreenChangeDrawingPerPage(int link, uint32_t v) {
+    SS.drawingPerPage = !SS.drawingPerPage;
+    SS.GW.Invalidate();
+}
+
 void TextWindow::ScreenChangeBackFaces(int link, uint32_t v) {
     SS.drawBackFaces = !SS.drawBackFaces;
     SS.GW.Invalidate(/*clearPersistent=*/true);
@@ -337,6 +342,9 @@ void TextWindow::ShowConfiguration() {
         SS.drawingLandscape ? CHECK_TRUE : CHECK_FALSE);
     Printf(false, "%Ft   margin: %Fd%@ mm %Fl%Ll%f[change]%E", SS.drawingMargin,
         &ScreenChangeDrawingMargin);
+    Printf(false, "  %Fd%f%Ll%s  one view per page (PDF)%E",
+        &ScreenChangeDrawingPerPage,
+        SS.drawingPerPage ? CHECK_TRUE : CHECK_FALSE);
 
     Printf(false, "");
     Printf(false, "%Ft export canvas size:  "

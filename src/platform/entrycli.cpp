@@ -273,8 +273,11 @@ static bool RunCommand(const std::vector<std::string> args) {
             SS.ExportViewOrWireframeTo(output, /*exportWireframe=*/false);
         };
     } else if(args[1] == "export-drawing") {
+        bool perPage = false;
         for(size_t argn = 2; argn < args.size(); argn++) {
-            if(!(ParseInputFile(argn) ||
+            if(args[argn] == "--per-page") {
+                perPage = true;
+            } else if(!(ParseInputFile(argn) ||
                  ParseOutputPattern(argn) ||
                  ParseChordTolerance(argn))) {
                 fprintf(stderr, "Unrecognized option '%s'.\n", args[argn].c_str());
@@ -282,8 +285,9 @@ static bool RunCommand(const std::vector<std::string> args) {
             }
         }
 
-        runner = [&](const Platform::Path &output) {
+        runner = [&, perPage](const Platform::Path &output) {
             SS.exportChordTol = chordTol;
+            SS.drawingPerPage = perPage;
 
             SS.ExportDrawingViewsTo(output);
         };

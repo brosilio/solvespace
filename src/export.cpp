@@ -502,34 +502,56 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
     if(maxW < LENGTH_EPS) maxW = 1;
     if(maxH < LENGTH_EPS) maxH = 1;
 
-    // A4 portrait, two-column grid, uniform (to-scale) factor.
     double pageW, pageH;
     DrawingPaperSize(SS.drawingPaperSize, NULL, &pageW, &pageH);
     if(SS.drawingLandscape) swap(pageW, pageH);
     double margin = max(0.0, SS.drawingMargin);
-    double gap = margin * 0.8;
-    int cols = (int)ceil(sqrt((double)views.size()));
-    if(cols < 1) cols = 1;
-    int rows = (int)((views.size() + cols - 1) / cols);
-    double usableW = pageW - 2 * margin;
-    double usableH = pageH - 2 * margin;
-    double cellW = usableW / cols - gap;
-    double cellH = usableH / rows - gap;
-    double scale = min(cellW / maxW, cellH / maxH);
+    double usableW = pageW - 2 * margin, usableH = pageH - 2 * margin;
+
+    // One view per page (PDF only), or all views in a grid on one sheet. Either
+    // way a single common (to-scale) factor fits the largest view into its area.
+    bool perPage = SS.drawingPerPage && filename.HasExtension("pdf");
+    int cols = 1, rows = 1;
+    double gap = margin * 0.8, cellW = usableW, cellH = usableH, scale;
+    if(perPage) {
+        scale = min(usableW / maxW, usableH / maxH);
+    } else {
+        cols = (int)ceil(sqrt((double)views.size()));
+        if(cols < 1) cols = 1;
+        rows = (int)((views.size() + cols - 1) / cols);
+        cellW = usableW / cols - gap;
+        cellH = usableH / rows - gap;
+        scale = min(cellW / maxW, cellH / maxH);
+    }
 
     out->ptMin = Vector::From(0, 0, 0);
     out->ptMax = Vector::From(pageW, pageH, 0);
     out->StartFile();
 
     for(size_t i = 0; i < views.size(); i++) {
-        int col = (int)(i % cols);
-        int row = (int)(i / cols);
-        double cellX = margin + col * (usableW / cols);
-        double cellY = pageH - margin - (row + 1) * (usableH / rows);
+        if(perPage && i > 0) out->NewPage();
+
         double w = (boxes[i].max.x - boxes[i].min.x) * scale;
         double h = (boxes[i].max.y - boxes[i].min.y) * scale;
-        double ox = cellX + gap / 2 + (cellW - w) / 2 - boxes[i].min.x * scale;
-        double oy = cellY + gap / 2 + (cellH - h) / 2 - boxes[i].min.y * scale;
+        double cellX0, cellY0, cw, ch, labelX, labelY;
+        double lh = 2.8;
+        std::string label = views[i].name;
+        double lw = VectorFont::Builtin()->GetWidth(lh, label);
+        if(perPage) {
+            cellX0 = margin; cellY0 = margin; cw = usableW; ch = usableH;
+            labelX = (pageW - lw) / 2;
+            labelY = margin * 0.4;
+        } else {
+            int col = (int)(i % cols), row = (int)(i / cols);
+            double rowBottom = pageH - margin - (row + 1) * (usableH / rows);
+            cellX0 = margin + col * (usableW / cols) + gap / 2;
+            cellY0 = rowBottom + gap / 2;
+            cw = cellW; ch = cellH;
+            labelX = margin + col * (usableW / cols) + (usableW / cols - lw) / 2;
+            labelY = rowBottom + 0.6;
+        }
+        double ox = cellX0 + (cw - w) / 2 - boxes[i].min.x * scale;
+        double oy = cellY0 + (ch - h) / 2 - boxes[i].min.y * scale;
 
         for(auto &st : captured[i].strokes) {
             out->StartPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
@@ -544,17 +566,13 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
             out->FinishPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
         }
 
-        // View name label, centered in the gap below the cell content.
-        double cellFullW = usableW / cols;
-        double lh = 2.8;
-        std::string label = views[i].name;
-        double lw = VectorFont::Builtin()->GetWidth(lh, label);
-        Vector lo = Vector::From(cellX + (cellFullW - lw) / 2, cellY + 0.6, 0);
+        // View name label.
         RgbaColor black = RGBi(0, 0, 0);
         hStyle hcs = { Style::CONSTRAINT };
         out->StartPath(black, 0.25, false, black, hcs);
-        VectorFont::Builtin()->Trace(lh, lo, Vector::From(1, 0, 0), Vector::From(0, 1, 0),
-            label, [&](Vector a, Vector b) {
+        VectorFont::Builtin()->Trace(lh, Vector::From(labelX, labelY, 0),
+            Vector::From(1, 0, 0), Vector::From(0, 1, 0), label,
+            [&](Vector a, Vector b) {
                 SBezier sb = SBezier::From(a, b);
                 out->Bezier(&sb);
             });

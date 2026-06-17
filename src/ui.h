@@ -476,6 +476,7 @@ public:
     static void ScreenChangeDrawingPaper(int link, uint32_t v);
     static void ScreenChangeDrawingLandscape(int link, uint32_t v);
     static void ScreenChangeDrawingMargin(int link, uint32_t v);
+    static void ScreenChangeDrawingPerPage(int link, uint32_t v);
     static void ScreenChangeBackFaces(int link, uint32_t v);
     static void ScreenChangeShowContourAreas(int link, uint32_t v);
     static void ScreenChangeCheckClosedContour(int link, uint32_t v);

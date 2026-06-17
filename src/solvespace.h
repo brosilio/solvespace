@@ -261,6 +261,9 @@ public:
     virtual void Background(RgbaColor color) = 0;
     virtual void StartFile() = 0;
     virtual void FinishAndCloseFile() = 0;
+    // Begin a new page; only meaningful for multi-page formats (PDF). The
+    // default is a no-op, so single-page formats just keep drawing.
+    virtual void NewPage() {}
     virtual bool HasCanvasSize() const = 0;
     virtual bool CanOutputMesh() const = 0;
 };
@@ -309,8 +312,10 @@ public:
 };
 class PdfFileWriter : public VectorFileWriter {
 public:
-    uint32_t xref[10];
-    uint32_t bodyStart;
+    // Page content is buffered as text; the file (with one or more pages) is
+    // assembled in FinishAndCloseFile once all lengths are known.
+    std::vector<std::string> pages;
+    std::string body;
     Vector prevPt;
     void MaybeMoveTo(Vector s, Vector f);
 
@@ -323,6 +328,7 @@ public:
     void Background(RgbaColor color) override;
     void StartFile() override;
     void FinishAndCloseFile() override;
+    void NewPage() override;
     bool HasCanvasSize() const override { return true; }
     bool CanOutputMesh() const override { return true; }
 };
@@ -494,6 +500,7 @@ public:
     int      drawingPaperSize;   // index into DrawingPaperSize()
     bool     drawingLandscape;
     double   drawingMargin;      // sheet margin, mm
+    bool     drawingPerPage;     // one view per page (PDF) vs all in a grid
     bool     arcDimDefaultDiameter;
     bool     showFullFilePath;
     bool     fixExportColors;
