@@ -430,6 +430,30 @@ public:
 #undef ENTITY
 #undef CONSTRAINT
 
+// The laid-out engineering drawing, shared by the file export and the
+// graphics-window preview so they are guaranteed identical. All geometry is
+// already placed in page millimetres.
+class DrawingSheet {
+public:
+    struct Stroke {
+        RgbaColor            strokeRgb;
+        double               lineWidth;
+        bool                 filled;
+        RgbaColor            fillRgb;
+        hStyle               hs;
+        std::vector<SBezier> beziers;
+    };
+    struct Item {
+        int                 page;
+        std::vector<Stroke> strokes;
+    };
+    double            pageW = 0, pageH = 0; // mm
+    int               nPages = 1;
+    std::vector<Item> items;
+
+    void Clear() { items.clear(); pageW = pageH = 0; nPages = 1; }
+};
+
 class SolveSpaceUI {
 public:
     TextWindow                 *pTW;
@@ -632,6 +656,7 @@ public:
     void ExportMeshAsVrmlTo(FILE *f, const Platform::Path &filename, SMesh *sm);
     void ExportViewOrWireframeTo(const Platform::Path &filename, bool exportWireframe);
     void ExportDrawingViewsTo(const Platform::Path &filename);
+    void ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage);
     static const int kNumDrawingViews = 8;
     static const char *DrawingViewName(int i);
     static const int kNumPaperSizes = 6;

@@ -373,12 +373,8 @@ const char *SolveSpaceUI::DrawingViewName(int i) {
     return names[i];
 }
 
-void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
-    VectorFileWriter *out = VectorFileWriter::ForFile(filename);
-    if(!out) return;
-
-    SS.exportMode = true;
-    GenerateAll(Generate::ALL);
+void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage) {
+    sheet->Clear();
 
     // Save state we temporarily change to capture geometry in model mm.
     Vector savedRight = SS.GW.projRight, savedUp = SS.GW.projUp;
@@ -510,10 +506,10 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
 
     // Lay the views out as a grid, optionally split across pages: 0
     // views-per-page means all on one sheet; otherwise that many cells per page
-    // (PDF only, since the other formats are single-page). A single common
-    // (to-scale) factor fits the largest view into a cell.
+    // (only when the caller permits, i.e. PDF; other formats are single-page).
+    // A single common (to-scale) factor fits the largest view into a cell.
     int nViews = (int)views.size();
-    bool multiPage = filename.HasExtension("pdf") && SS.drawingViewsPerPage >= 1;
+    bool multiPage = allowMultiPage && SS.drawingViewsPerPage >= 1;
     int cellsPerPage = (multiPage && SS.drawingViewsPerPage < nViews)
                            ? SS.drawingViewsPerPage : nViews;
     if(cellsPerPage < 1) cellsPerPage = 1;
@@ -525,14 +521,13 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
     double cellH = usableH / rows - gap;
     double scale = min(cellW / maxW, cellH / maxH);
 
-    out->ptMin = Vector::From(0, 0, 0);
-    out->ptMax = Vector::From(pageW, pageH, 0);
-    out->StartFile();
+    sheet->pageW  = pageW;
+    sheet->pageH  = pageH;
+    sheet->nPages = (nViews + cellsPerPage - 1) / cellsPerPage;
+    sheet->items.resize(nViews);
 
     for(int i = 0; i < nViews; i++) {
         int idx = i % cellsPerPage;
-        if(i > 0 && idx == 0) out->NewPage();
-
         int col = idx % cols, row = idx / cols;
         double rowBottom = pageH - margin - (row + 1) * (usableH / rows);
         double cellX0 = margin + col * (usableW / cols) + gap / 2;
@@ -540,40 +535,69 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
 
         double w = (boxes[i].max.x - boxes[i].min.x) * scale;
         double h = (boxes[i].max.y - boxes[i].min.y) * scale;
-        double lh = 2.8;
-        std::string label = views[i].name;
-        double lw = VectorFont::Builtin()->GetWidth(lh, label);
-        double labelX = margin + col * (usableW / cols) + (usableW / cols - lw) / 2;
-        double labelY = rowBottom + 0.6;
         double ox = cellX0 + (cellW - w) / 2 - boxes[i].min.x * scale;
         double oy = cellY0 + (cellH - h) / 2 - boxes[i].min.y * scale;
 
+        DrawingSheet::Item &item = sheet->items[i];
+        item.page = i / cellsPerPage;
+
+        // View linework, placed in page mm.
         for(auto &st : captured[i].strokes) {
-            out->StartPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
+            DrawingSheet::Stroke ds;
+            ds.strokeRgb = st.strokeRgb; ds.lineWidth = st.lineWidth;
+            ds.filled    = st.filled;    ds.fillRgb   = st.fillRgb;  ds.hs = st.hs;
             for(auto &sb : st.beziers) {
                 SBezier t = sb;
                 for(int k = 0; k <= t.deg; k++) {
                     t.ctrl[k] = Vector::From(sb.ctrl[k].x * scale + ox,
                                              sb.ctrl[k].y * scale + oy, 0);
                 }
-                out->Bezier(&t);
+                ds.beziers.push_back(t);
             }
-            out->FinishPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
+            item.strokes.push_back(ds);
         }
 
-        // View name label.
-        RgbaColor black = RGBi(0, 0, 0);
-        hStyle hcs = { Style::CONSTRAINT };
-        out->StartPath(black, 0.25, false, black, hcs);
+        // View name label, drawn as linework so it renders the same way
+        // wherever the sheet is consumed.
+        double lh = 2.8;
+        std::string label = views[i].name;
+        double lw = VectorFont::Builtin()->GetWidth(lh, label);
+        double labelX = margin + col * (usableW / cols) + (usableW / cols - lw) / 2;
+        double labelY = rowBottom + 0.6;
+        DrawingSheet::Stroke lab;
+        lab.strokeRgb = RGBi(0, 0, 0); lab.lineWidth = 0.25;
+        lab.filled    = false;         lab.fillRgb   = RGBi(0, 0, 0);
+        lab.hs        = { Style::CONSTRAINT };
         VectorFont::Builtin()->Trace(lh, Vector::From(labelX, labelY, 0),
             Vector::From(1, 0, 0), Vector::From(0, 1, 0), label,
-            [&](Vector a, Vector b) {
-                SBezier sb = SBezier::From(a, b);
-                out->Bezier(&sb);
-            });
-        out->FinishPath(black, 0.25, false, black, hcs);
+            [&](Vector a, Vector b) { lab.beziers.push_back(SBezier::From(a, b)); });
+        item.strokes.push_back(lab);
     }
+}
 
+void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
+    SS.exportMode = true;
+    GenerateAll(Generate::ALL);
+
+    DrawingSheet sheet;
+    ComputeDrawingSheet(&sheet, /*allowMultiPage=*/filename.HasExtension("pdf"));
+
+    VectorFileWriter *out = VectorFileWriter::ForFile(filename);
+    if(!out) return;
+    out->ptMin = Vector::From(0, 0, 0);
+    out->ptMax = Vector::From(sheet.pageW, sheet.pageH, 0);
+    out->StartFile();
+    for(int pg = 0; pg < sheet.nPages; pg++) {
+        if(pg > 0) out->NewPage();
+        for(auto &item : sheet.items) {
+            if(item.page != pg) continue;
+            for(auto &st : item.strokes) {
+                out->StartPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
+                for(auto &b : st.beziers) out->Bezier(&b);
+                out->FinishPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);
+            }
+        }
+    }
     out->FinishAndCloseFile();
 }
 
