@@ -500,7 +500,7 @@ public:
     int      drawingPaperSize;   // index into DrawingPaperSize()
     bool     drawingLandscape;
     double   drawingMargin;      // sheet margin, mm
-    bool     drawingPerPage;     // one view per page (PDF) vs all in a grid
+    int      drawingViewsPerPage; // 0 = all on one sheet; else N views/page (PDF)
     bool     arcDimDefaultDiameter;
     bool     showFullFilePath;
     bool     fixExportColors;

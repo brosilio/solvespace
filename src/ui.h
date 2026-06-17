@@ -348,6 +348,7 @@ public:
         EXPLODE_DISTANCE      = 120,
         ANIMATION_SPEED       = 121,
         DRAWING_MARGIN        = 122,
+        DRAWING_VIEWS_PER_PAGE = 123,
         // For TTF text
         TTF_TEXT              = 300,
         // For the step dimension screen
@@ -476,7 +477,7 @@ public:
     static void ScreenChangeDrawingPaper(int link, uint32_t v);
     static void ScreenChangeDrawingLandscape(int link, uint32_t v);
     static void ScreenChangeDrawingMargin(int link, uint32_t v);
-    static void ScreenChangeDrawingPerPage(int link, uint32_t v);
+    static void ScreenChangeDrawingViewsPerPage(int link, uint32_t v);
     static void ScreenChangeBackFaces(int link, uint32_t v);
     static void ScreenChangeShowContourAreas(int link, uint32_t v);
     static void ScreenChangeCheckClosedContour(int link, uint32_t v);

@@ -508,50 +508,45 @@ void SolveSpaceUI::ExportDrawingViewsTo(const Platform::Path &filename) {
     double margin = max(0.0, SS.drawingMargin);
     double usableW = pageW - 2 * margin, usableH = pageH - 2 * margin;
 
-    // One view per page (PDF only), or all views in a grid on one sheet. Either
-    // way a single common (to-scale) factor fits the largest view into its area.
-    bool perPage = SS.drawingPerPage && filename.HasExtension("pdf");
-    int cols = 1, rows = 1;
-    double gap = margin * 0.8, cellW = usableW, cellH = usableH, scale;
-    if(perPage) {
-        scale = min(usableW / maxW, usableH / maxH);
-    } else {
-        cols = (int)ceil(sqrt((double)views.size()));
-        if(cols < 1) cols = 1;
-        rows = (int)((views.size() + cols - 1) / cols);
-        cellW = usableW / cols - gap;
-        cellH = usableH / rows - gap;
-        scale = min(cellW / maxW, cellH / maxH);
-    }
+    // Lay the views out as a grid, optionally split across pages: 0
+    // views-per-page means all on one sheet; otherwise that many cells per page
+    // (PDF only, since the other formats are single-page). A single common
+    // (to-scale) factor fits the largest view into a cell.
+    int nViews = (int)views.size();
+    bool multiPage = filename.HasExtension("pdf") && SS.drawingViewsPerPage >= 1;
+    int cellsPerPage = (multiPage && SS.drawingViewsPerPage < nViews)
+                           ? SS.drawingViewsPerPage : nViews;
+    if(cellsPerPage < 1) cellsPerPage = 1;
+    double gap = margin * 0.8;
+    int cols = (int)ceil(sqrt((double)cellsPerPage));
+    if(cols < 1) cols = 1;
+    int rows = (cellsPerPage + cols - 1) / cols;
+    double cellW = usableW / cols - gap;
+    double cellH = usableH / rows - gap;
+    double scale = min(cellW / maxW, cellH / maxH);
 
     out->ptMin = Vector::From(0, 0, 0);
     out->ptMax = Vector::From(pageW, pageH, 0);
     out->StartFile();
 
-    for(size_t i = 0; i < views.size(); i++) {
-        if(perPage && i > 0) out->NewPage();
+    for(int i = 0; i < nViews; i++) {
+        int idx = i % cellsPerPage;
+        if(i > 0 && idx == 0) out->NewPage();
+
+        int col = idx % cols, row = idx / cols;
+        double rowBottom = pageH - margin - (row + 1) * (usableH / rows);
+        double cellX0 = margin + col * (usableW / cols) + gap / 2;
+        double cellY0 = rowBottom + gap / 2;
 
         double w = (boxes[i].max.x - boxes[i].min.x) * scale;
         double h = (boxes[i].max.y - boxes[i].min.y) * scale;
-        double cellX0, cellY0, cw, ch, labelX, labelY;
         double lh = 2.8;
         std::string label = views[i].name;
         double lw = VectorFont::Builtin()->GetWidth(lh, label);
-        if(perPage) {
-            cellX0 = margin; cellY0 = margin; cw = usableW; ch = usableH;
-            labelX = (pageW - lw) / 2;
-            labelY = margin * 0.4;
-        } else {
-            int col = (int)(i % cols), row = (int)(i / cols);
-            double rowBottom = pageH - margin - (row + 1) * (usableH / rows);
-            cellX0 = margin + col * (usableW / cols) + gap / 2;
-            cellY0 = rowBottom + gap / 2;
-            cw = cellW; ch = cellH;
-            labelX = margin + col * (usableW / cols) + (usableW / cols - lw) / 2;
-            labelY = rowBottom + 0.6;
-        }
-        double ox = cellX0 + (cw - w) / 2 - boxes[i].min.x * scale;
-        double oy = cellY0 + (ch - h) / 2 - boxes[i].min.y * scale;
+        double labelX = margin + col * (usableW / cols) + (usableW / cols - lw) / 2;
+        double labelY = rowBottom + 0.6;
+        double ox = cellX0 + (cellW - w) / 2 - boxes[i].min.x * scale;
+        double oy = cellY0 + (cellH - h) / 2 - boxes[i].min.y * scale;
 
         for(auto &st : captured[i].strokes) {
             out->StartPath(st.strokeRgb, st.lineWidth, st.filled, st.fillRgb, st.hs);

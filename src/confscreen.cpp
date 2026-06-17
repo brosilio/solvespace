@@ -110,9 +110,9 @@ void TextWindow::ScreenChangeDrawingMargin(int link, uint32_t v) {
     SS.TW.edit.meaning = Edit::DRAWING_MARGIN;
 }
 
-void TextWindow::ScreenChangeDrawingPerPage(int link, uint32_t v) {
-    SS.drawingPerPage = !SS.drawingPerPage;
-    SS.GW.Invalidate();
+void TextWindow::ScreenChangeDrawingViewsPerPage(int link, uint32_t v) {
+    SS.TW.ShowEditControl(13, ssprintf("%d", SS.drawingViewsPerPage));
+    SS.TW.edit.meaning = Edit::DRAWING_VIEWS_PER_PAGE;
 }
 
 void TextWindow::ScreenChangeBackFaces(int link, uint32_t v) {
@@ -342,9 +342,11 @@ void TextWindow::ShowConfiguration() {
         SS.drawingLandscape ? CHECK_TRUE : CHECK_FALSE);
     Printf(false, "%Ft   margin: %Fd%@ mm %Fl%Ll%f[change]%E", SS.drawingMargin,
         &ScreenChangeDrawingMargin);
-    Printf(false, "  %Fd%f%Ll%s  one view per page (PDF)%E",
-        &ScreenChangeDrawingPerPage,
-        SS.drawingPerPage ? CHECK_TRUE : CHECK_FALSE);
+    std::string viewsPerPage = (SS.drawingViewsPerPage <= 0)
+                                   ? std::string("all (one sheet)")
+                                   : ssprintf("%d", SS.drawingViewsPerPage);
+    Printf(false, "%Ft   views per page (PDF): %Fd%s %Fl%Ll%f[change]%E",
+        viewsPerPage.c_str(), &ScreenChangeDrawingViewsPerPage);
 
     Printf(false, "");
     Printf(false, "%Ft export canvas size:  "
@@ -482,6 +484,9 @@ bool TextWindow::EditControlDoneForConfiguration(const std::string &s) {
         }
         case Edit::DRAWING_MARGIN:
             SS.drawingMargin = max(0.0, atof(s.c_str()));
+            break;
+        case Edit::DRAWING_VIEWS_PER_PAGE:
+            SS.drawingViewsPerPage = max(0, atoi(s.c_str()));
             break;
         case Edit::MAX_SEGMENTS: {
             if(edit.i == 0) {
