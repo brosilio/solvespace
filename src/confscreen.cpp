@@ -120,6 +120,31 @@ void TextWindow::ScreenChangeDrawingLineWidth(int link, uint32_t v) {
     SS.TW.edit.meaning = Edit::DRAWING_LINE_WIDTH;
 }
 
+void TextWindow::ScreenChangeDrawingTitleBlock(int link, uint32_t v) {
+    SS.drawingTitleBlock = !SS.drawingTitleBlock;
+    SS.GW.UpdateDrawingPreview();
+}
+
+void TextWindow::ScreenChangeDrawingTitle(int link, uint32_t v) {
+    SS.TW.ShowEditControl(13, SS.drawingTitle);
+    SS.TW.edit.meaning = Edit::DRAWING_TITLE;
+}
+
+void TextWindow::ScreenChangeDrawingDrawnBy(int link, uint32_t v) {
+    SS.TW.ShowEditControl(13, SS.drawingDrawnBy);
+    SS.TW.edit.meaning = Edit::DRAWING_DRAWN_BY;
+}
+
+void TextWindow::ScreenChangeDrawingRev(int link, uint32_t v) {
+    SS.TW.ShowEditControl(13, SS.drawingRev);
+    SS.TW.edit.meaning = Edit::DRAWING_REV;
+}
+
+void TextWindow::ScreenChangeDrawingNotesBox(int link, uint32_t v) {
+    SS.drawingNotesBox = !SS.drawingNotesBox;
+    SS.GW.UpdateDrawingPreview();
+}
+
 void TextWindow::ScreenChangeBackFaces(int link, uint32_t v) {
     SS.drawBackFaces = !SS.drawBackFaces;
     SS.GW.Invalidate(/*clearPersistent=*/true);
@@ -451,6 +476,14 @@ void TextWindow::ScreenExportDrawingToFile(int link, uint32_t v) {
     }
 }
 
+// Shorten a value for display in the (narrow) property browser so the
+// trailing [change] link doesn't get pushed off the right edge.
+static std::string EllipsizeForDisplay(const std::string &s, size_t maxChars) {
+    if(s.empty()) return "(none)";
+    if(s.length() <= maxChars) return s;
+    return s.substr(0, maxChars) + "...";
+}
+
 void TextWindow::ShowDrawingExport() {
     Printf(true, "%Ft EXPORT ENGINEERING DRAWING%E");
 
@@ -481,6 +514,24 @@ void TextWindow::ShowDrawingExport() {
                                    : ssprintf("%d", SS.drawingViewsPerPage);
     Printf(false, "%Ft views per page (PDF):%E %Fd%s %Fl%Ll%f[change]%E",
         viewsPerPage.c_str(), &ScreenChangeDrawingViewsPerPage);
+
+    Printf(false, "  %Fd%f%Ll%s  title block%E",
+        &ScreenChangeDrawingTitleBlock,
+        SS.drawingTitleBlock ? CHECK_TRUE : CHECK_FALSE);
+    if(SS.drawingTitleBlock) {
+        Printf(false, "%Ft   title:%E %Fd%s %Fl%Ll%f[change]%E",
+            EllipsizeForDisplay(SS.drawingTitle, 22).c_str(),
+            &ScreenChangeDrawingTitle);
+        Printf(false, "%Ft   drawn by:%E %Fd%s %Fl%Ln%f[change]%E",
+            EllipsizeForDisplay(SS.drawingDrawnBy, 22).c_str(),
+            &ScreenChangeDrawingDrawnBy);
+        Printf(false, "%Ft   rev:%E %Fd%s %Fl%Lr%f[change]%E",
+            EllipsizeForDisplay(SS.drawingRev, 22).c_str(),
+            &ScreenChangeDrawingRev);
+        Printf(false, "  %Fd%f%Lk%s  notes box%E",
+            &ScreenChangeDrawingNotesBox,
+            SS.drawingNotesBox ? CHECK_TRUE : CHECK_FALSE);
+    }
 
     if(SS.drawingPreview.nPages > 1) {
         Printf(false, "%Ft preview page:%E %Fd%d of %d%E  %Fl%Ll%f[prev]%E  %Fl%Ln%f[next]%E",
@@ -542,6 +593,18 @@ bool TextWindow::EditControlDoneForConfiguration(const std::string &s) {
             break;
         case Edit::DRAWING_LINE_WIDTH:
             SS.drawingLineWidth = max(0.01, atof(s.c_str()));
+            SS.GW.UpdateDrawingPreview();
+            break;
+        case Edit::DRAWING_TITLE:
+            SS.drawingTitle = s;
+            SS.GW.UpdateDrawingPreview();
+            break;
+        case Edit::DRAWING_DRAWN_BY:
+            SS.drawingDrawnBy = s;
+            SS.GW.UpdateDrawingPreview();
+            break;
+        case Edit::DRAWING_REV:
+            SS.drawingRev = s;
             SS.GW.UpdateDrawingPreview();
             break;
         case Edit::MAX_SEGMENTS: {

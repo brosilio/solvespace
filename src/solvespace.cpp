@@ -58,6 +58,11 @@ void SolveSpaceUI::Init() {
     drawingLandscape = settings->ThawBool("DrawingLandscape", false);
     drawingMargin    = settings->ThawFloat("DrawingMargin", 8.5);
     drawingLineWidth = settings->ThawFloat("DrawingLineWidth", 0.28);
+    drawingTitleBlock = settings->ThawBool("DrawingTitleBlock", true);
+    drawingTitle     = settings->ThawString("DrawingTitle", "");
+    drawingDrawnBy   = settings->ThawString("DrawingDrawnBy", "");
+    drawingRev       = settings->ThawString("DrawingRev", "");
+    drawingNotesBox  = settings->ThawBool("DrawingNotesBox", true);
     drawingViewsPerPage = settings->ThawInt("DrawingViewsPerPage", 0); // all on one sheet
     // Chord tolerance
     exportChordTol = settings->ThawFloat("ExportChordTolerance", 0.1);
@@ -256,6 +261,11 @@ void SolveSpaceUI::Exit() {
     settings->FreezeBool("DrawingLandscape", drawingLandscape);
     settings->FreezeFloat("DrawingMargin", drawingMargin);
     settings->FreezeFloat("DrawingLineWidth", drawingLineWidth);
+    settings->FreezeBool("DrawingTitleBlock", drawingTitleBlock);
+    settings->FreezeString("DrawingTitle", drawingTitle);
+    settings->FreezeString("DrawingDrawnBy", drawingDrawnBy);
+    settings->FreezeString("DrawingRev", drawingRev);
+    settings->FreezeBool("DrawingNotesBox", drawingNotesBox);
     settings->FreezeInt("DrawingViewsPerPage", drawingViewsPerPage);
     // Export Chord tolerance
     settings->FreezeFloat("ExportChordTolerance", (float)exportChordTol);

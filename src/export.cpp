@@ -8,6 +8,7 @@
 //-----------------------------------------------------------------------------
 #include "solvespace.h"
 #include "config.h"
+#include <ctime>
 
 namespace SolveSpace {
 
@@ -373,6 +374,111 @@ const char *SolveSpaceUI::DrawingViewName(int i) {
     return names[i];
 }
 
+// Truncate a string with an ellipsis so it fits within maxW at cap height h.
+static std::string FitText(const std::string &s, double maxW, double h) {
+    if(s.empty() || VectorFont::Builtin()->GetWidth(h, s) <= maxW) return s;
+    std::string t = s;
+    while(!t.empty()) {
+        t.pop_back();
+        if(VectorFont::Builtin()->GetWidth(h, t + "...") <= maxW) return t + "...";
+    }
+    return "";
+}
+
+// Append a standard bottom-right title block (box + labelled fields, drawn as
+// linework) to a sheet item, in page mm.
+static void AddTitleBlock(DrawingSheet::Item *item, double L, double B, double W, double H,
+                          const std::string &title, const std::string &name,
+                          const std::string &scaleStr, const std::string &units,
+                          const std::string &date, const std::string &drawnBy,
+                          const std::string &rev, int page, int nPages) {
+    RgbaColor black = RGBi(0, 0, 0);
+    hStyle    hcs   = { Style::CONSTRAINT };
+
+    DrawingSheet::Stroke lines;
+    lines.strokeRgb = black; lines.lineWidth = max(0.2, SS.drawingLineWidth);
+    lines.filled = false; lines.fillRgb = black; lines.hs = hcs;
+    auto line = [&](double x1, double y1, double x2, double y2) {
+        lines.beziers.push_back(SBezier::From(Vector::From(x1, y1, 0), Vector::From(x2, y2, 0)));
+    };
+
+    DrawingSheet::Stroke text;
+    text.strokeRgb = black; text.lineWidth = 0.2;
+    text.filled = false; text.fillRgb = black; text.hs = hcs;
+    auto addText = [&](const std::string &s, double x, double y, double h) {
+        VectorFont::Builtin()->Trace(h, Vector::From(x, y, 0),
+            Vector::From(1, 0, 0), Vector::From(0, 1, 0), s,
+            [&](Vector a, Vector b) { text.beziers.push_back(SBezier::From(a, b)); });
+    };
+
+    double T = B + H, R = L + W, pad = 1.5;
+    double midY = B + H * 0.5;  // divider: title on top, fields below
+
+    line(L, B, R, B); line(R, B, R, T); line(R, T, L, T); line(L, T, L, B);
+    line(L, midY, R, midY);
+
+    // Title row: title at left, "BY" at right; truncate the title to the gap.
+    std::string by  = drawnBy.empty() ? "" : ("BY: " + drawnBy);
+    double      byW = by.empty() ? 0.0 : VectorFont::Builtin()->GetWidth(2.0, by);
+    std::string ttl = FitText(title.empty() ? "(untitled)" : title,
+                              W - 3 * pad - byW, 2.8);
+    addText(ttl, L + pad, midY + (T - midY - 2.8) / 2, 2.8);
+    if(!by.empty()) addText(by, R - pad - byW, midY + (T - midY - 2.0) / 2, 2.0);
+
+    // Field row, weighted so the name gets the most room; values truncated to
+    // their cell so long filenames can't bleed into the next field.
+    struct Field { const char *label; std::string value; double weight; };
+    Field fields[] = {
+        { "DWG",   name,                                2.8  },
+        { "SCALE", scaleStr,                            0.9  },
+        { "UNITS", units,                               0.55 },
+        { "REV",   rev,                                 0.55 },
+        { "DATE",  date,                                1.2  },
+        { "SHEET", ssprintf("%d/%d", page + 1, nPages), 0.8  },
+    };
+    double totalW = 0;
+    for(auto &f : fields) totalW += f.weight;
+    double x = L;
+    bool first = true;
+    for(auto &f : fields) {
+        double cwi = W * (f.weight / totalW);
+        if(!first) line(x, B, x, midY);
+        first = false;
+        double avail = cwi - 2 * pad;
+        addText(f.label,                       x + pad, midY - 2.0, 1.4);
+        addText(FitText(f.value, avail, 2.2),  x + pad, B + 1.2,    2.2);
+        x += cwi;
+    }
+
+    item->strokes.push_back(lines);
+    item->strokes.push_back(text);
+}
+
+// An empty bordered NOTES box, filling the space to the left of the title
+// block (a spot for hand-written notes after printing).
+static void AddNotesBox(DrawingSheet::Item *item, double L, double B, double W, double H) {
+    RgbaColor black = RGBi(0, 0, 0);
+    hStyle    hcs   = { Style::CONSTRAINT };
+
+    DrawingSheet::Stroke lines;
+    lines.strokeRgb = black; lines.lineWidth = max(0.2, SS.drawingLineWidth);
+    lines.filled = false; lines.fillRgb = black; lines.hs = hcs;
+    double T = B + H, R = L + W;
+    auto line = [&](double x1, double y1, double x2, double y2) {
+        lines.beziers.push_back(SBezier::From(Vector::From(x1, y1, 0), Vector::From(x2, y2, 0)));
+    };
+    line(L, B, R, B); line(R, B, R, T); line(R, T, L, T); line(L, T, L, B);
+    item->strokes.push_back(lines);
+
+    DrawingSheet::Stroke text;
+    text.strokeRgb = black; text.lineWidth = 0.2;
+    text.filled = false; text.fillRgb = black; text.hs = hcs;
+    VectorFont::Builtin()->Trace(1.6, Vector::From(L + 1.5, T - 2.4, 0),
+        Vector::From(1, 0, 0), Vector::From(0, 1, 0), "NOTES",
+        [&](Vector a, Vector b) { text.beziers.push_back(SBezier::From(a, b)); });
+    item->strokes.push_back(text);
+}
+
 void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage) {
     sheet->Clear();
 
@@ -511,6 +617,10 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
     double margin = max(0.0, SS.drawingMargin);
     double usableW = pageW - 2 * margin, usableH = pageH - 2 * margin;
 
+    // Reserve a bottom strip for the title block; the views lay out above it.
+    double titleH = SS.drawingTitleBlock ? min(22.0, usableH * 0.5) : 0.0;
+    double viewsAreaH = usableH - titleH;
+
     // Lay the views out as a grid, optionally split across pages: 0
     // views-per-page means all on one sheet; otherwise that many cells per page
     // (only when the caller permits, i.e. PDF; other formats are single-page).
@@ -524,8 +634,8 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
     int cols = (int)ceil(sqrt((double)cellsPerPage));
     if(cols < 1) cols = 1;
     int rows = (cellsPerPage + cols - 1) / cols;
-    double cellW = usableW / cols - gap;
-    double cellH = usableH / rows - gap;
+    double cellW = max(1.0, usableW / cols - gap);
+    double cellH = max(1.0, viewsAreaH / rows - gap);
     double scale = min(cellW / maxW, cellH / maxH);
 
     sheet->pageW  = pageW;
@@ -536,7 +646,7 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
     for(int i = 0; i < nViews; i++) {
         int idx = i % cellsPerPage;
         int col = idx % cols, row = idx / cols;
-        double rowBottom = pageH - margin - (row + 1) * (usableH / rows);
+        double rowBottom = pageH - margin - (row + 1) * (viewsAreaH / rows);
         double cellX0 = margin + col * (usableW / cols) + gap / 2;
         double cellY0 = rowBottom + gap / 2;
 
@@ -582,6 +692,35 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
             Vector::From(1, 0, 0), Vector::From(0, 1, 0), label,
             [&](Vector a, Vector b) { lab.beziers.push_back(SBezier::From(a, b)); });
         item.strokes.push_back(lab);
+    }
+
+    // Title block, one per page (each carrying that page's sheet number).
+    if(SS.drawingTitleBlock && titleH > LENGTH_EPS) {
+        std::string name = SS.saveFile.FileStem();
+        if(name.empty()) name = "untitled";
+        std::string scaleStr = (scale >= 1.0) ? ssprintf("%.3g:1", scale)
+                                              : ssprintf("1:%.3g", 1.0 / scale);
+        char datebuf[32] = "";
+        time_t t = time(NULL);
+        struct tm *lt = localtime(&t);
+        if(lt) strftime(datebuf, sizeof(datebuf), "%Y-%m-%d", lt);
+
+        double bh = max(1.0, titleH - gap);
+        double bw = min(usableW, 150.0);
+        double bl = pageW - margin - bw, bb = margin;
+        for(int pg = 0; pg < sheet->nPages; pg++) {
+            DrawingSheet::Item blk;
+            blk.page = pg;
+            AddTitleBlock(&blk, bl, bb, bw, bh, SS.drawingTitle, name, scaleStr,
+                          SS.UnitName(), datebuf, SS.drawingDrawnBy, SS.drawingRev,
+                          pg, sheet->nPages);
+            // Fill the leftover space left of the block with a notes box.
+            double nW = (bl - gap) - margin;
+            if(SS.drawingNotesBox && nW > 25.0) {
+                AddNotesBox(&blk, margin, bb, nW, bh);
+            }
+            sheet->items.push_back(blk);
+        }
     }
 }
 

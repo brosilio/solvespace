@@ -1066,7 +1066,8 @@ void GraphicsWindow::DrawDrawingPreview(UiCanvas *uic, const Camera &camera) {
     if(sheet.nPages > 1) {
         uic->DrawBitmapText(ssprintf("page %d of %d (export writes all)",
                                      page + 1, sheet.nPages),
-                            (int)left, (int)top - 6, RGBi(170, 170, 170));
+                            (int)left, (int)top - TextWindow::CHAR_HEIGHT - 4,
+                            RGBi(170, 170, 170));
     }
 }
 

@@ -351,6 +351,9 @@ public:
         DRAWING_MARGIN        = 122,
         DRAWING_VIEWS_PER_PAGE = 123,
         DRAWING_LINE_WIDTH    = 124,
+        DRAWING_TITLE         = 125,
+        DRAWING_DRAWN_BY      = 126,
+        DRAWING_REV           = 127,
         // For TTF text
         TTF_TEXT              = 300,
         // For the step dimension screen
@@ -482,6 +485,11 @@ public:
     static void ScreenChangeDrawingMargin(int link, uint32_t v);
     static void ScreenChangeDrawingViewsPerPage(int link, uint32_t v);
     static void ScreenChangeDrawingLineWidth(int link, uint32_t v);
+    static void ScreenChangeDrawingTitleBlock(int link, uint32_t v);
+    static void ScreenChangeDrawingTitle(int link, uint32_t v);
+    static void ScreenChangeDrawingDrawnBy(int link, uint32_t v);
+    static void ScreenChangeDrawingRev(int link, uint32_t v);
+    static void ScreenChangeDrawingNotesBox(int link, uint32_t v);
     static void ScreenDrawingPagePrev(int link, uint32_t v);
     static void ScreenDrawingPageNext(int link, uint32_t v);
     static void ScreenExportDrawingToFile(int link, uint32_t v);

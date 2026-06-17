@@ -525,6 +525,11 @@ public:
     bool     drawingLandscape;
     double   drawingMargin;      // sheet margin, mm
     double   drawingLineWidth;   // drawing line weight, mm (decoupled from zoom)
+    bool     drawingTitleBlock;  // show the bottom-right title block
+    std::string drawingTitle;    // editable title-block fields (global defaults)
+    std::string drawingDrawnBy;
+    std::string drawingRev;
+    bool     drawingNotesBox;    // empty NOTES box filling the bottom-left space
     int      drawingViewsPerPage; // 0 = all on one sheet; else N views/page (PDF)
     DrawingSheet drawingPreview;  // cached sheet shown while the export screen is up
     int      drawingPreviewPage;  // which page of the preview is shown
