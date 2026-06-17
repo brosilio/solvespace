@@ -92,17 +92,17 @@ void TextWindow::ScreenChangeExportBackgroundColor(int link, uint32_t v) {
 void TextWindow::ScreenChangeDrawingView(int link, uint32_t v) {
     // v is the DrawingViewName() index; toggle that view's bit.
     SS.drawingViewMask ^= (1u << v);
-    SS.GW.Invalidate();
+    SS.GW.UpdateDrawingPreview();
 }
 
 void TextWindow::ScreenChangeDrawingPaper(int link, uint32_t v) {
     SS.drawingPaperSize = (SS.drawingPaperSize + 1) % SolveSpaceUI::kNumPaperSizes;
-    SS.GW.Invalidate();
+    SS.GW.UpdateDrawingPreview();
 }
 
 void TextWindow::ScreenChangeDrawingLandscape(int link, uint32_t v) {
     SS.drawingLandscape = !SS.drawingLandscape;
-    SS.GW.Invalidate();
+    SS.GW.UpdateDrawingPreview();
 }
 
 void TextWindow::ScreenChangeDrawingMargin(int link, uint32_t v) {
@@ -113,6 +113,11 @@ void TextWindow::ScreenChangeDrawingMargin(int link, uint32_t v) {
 void TextWindow::ScreenChangeDrawingViewsPerPage(int link, uint32_t v) {
     SS.TW.ShowEditControl(13, ssprintf("%d", SS.drawingViewsPerPage));
     SS.TW.edit.meaning = Edit::DRAWING_VIEWS_PER_PAGE;
+}
+
+void TextWindow::ScreenChangeDrawingLineWidth(int link, uint32_t v) {
+    SS.TW.ShowEditControl(13, ssprintf("%.2f", SS.drawingLineWidth));
+    SS.TW.edit.meaning = Edit::DRAWING_LINE_WIDTH;
 }
 
 void TextWindow::ScreenChangeBackFaces(int link, uint32_t v) {
@@ -325,30 +330,6 @@ void TextWindow::ShowConfiguration() {
         SS.exportBackgroundColor ? CHECK_TRUE : CHECK_FALSE);
 
     Printf(false, "");
-    Printf(false, "%Ft engineering drawing views to include:");
-    for(int i = 0; i < SolveSpaceUI::kNumDrawingViews; i++) {
-        Printf(false, "  %Fd%f%Ll%D%s  %s%E",
-            &ScreenChangeDrawingView,
-            (uint32_t)i,
-            (SS.drawingViewMask & (1u << i)) ? CHECK_TRUE : CHECK_FALSE,
-            SolveSpaceUI::DrawingViewName(i));
-    }
-    const char *paperName;
-    SolveSpaceUI::DrawingPaperSize(SS.drawingPaperSize, &paperName, NULL, NULL);
-    Printf(false, "%Ft   paper: %Fd%s %Fl%Ll%f[change]%E", paperName,
-        &ScreenChangeDrawingPaper);
-    Printf(false, "  %Fd%f%Ll%s  landscape%E",
-        &ScreenChangeDrawingLandscape,
-        SS.drawingLandscape ? CHECK_TRUE : CHECK_FALSE);
-    Printf(false, "%Ft   margin: %Fd%@ mm %Fl%Ll%f[change]%E", SS.drawingMargin,
-        &ScreenChangeDrawingMargin);
-    std::string viewsPerPage = (SS.drawingViewsPerPage <= 0)
-                                   ? std::string("all (one sheet)")
-                                   : ssprintf("%d", SS.drawingViewsPerPage);
-    Printf(false, "%Ft   views per page (PDF): %Fd%s %Fl%Ll%f[change]%E",
-        viewsPerPage.c_str(), &ScreenChangeDrawingViewsPerPage);
-
-    Printf(false, "");
     Printf(false, "%Ft export canvas size:  "
                   "%f%Fd%Lf%s fixed%E  "
                   "%f%Fd%Lt%s auto%E",
@@ -443,6 +424,75 @@ void TextWindow::ShowConfiguration() {
     #endif
 }
 
+void TextWindow::ScreenDrawingPagePrev(int link, uint32_t v) {
+    if(SS.drawingPreviewPage > 0) SS.drawingPreviewPage--;
+    SS.GW.Invalidate();
+    SS.ScheduleShowTW();
+}
+
+void TextWindow::ScreenDrawingPageNext(int link, uint32_t v) {
+    if(SS.drawingPreviewPage < SS.drawingPreview.nPages - 1) SS.drawingPreviewPage++;
+    SS.GW.Invalidate();
+    SS.ScheduleShowTW();
+}
+
+void TextWindow::ScreenExportDrawingToFile(int link, uint32_t v) {
+    Platform::SettingsRef settings = Platform::GetSettings();
+    Platform::FileDialogRef dialog = Platform::CreateSaveFileDialog(SS.GW.window);
+    dialog->AddFilters(Platform::VectorFileFilters);
+    dialog->ThawChoices(settings, "ExportDrawing");
+    dialog->SuggestFilename(SS.saveFile);
+    if(!dialog->RunModal()) return;
+    dialog->FreezeChoices(settings, "ExportDrawing");
+
+    SS.ExportDrawingViewsTo(dialog->GetFilename());
+    if(SS.OnSaveFinished) {
+        SS.OnSaveFinished(dialog->GetFilename(), false, false);
+    }
+}
+
+void TextWindow::ShowDrawingExport() {
+    Printf(true, "%Ft EXPORT ENGINEERING DRAWING%E");
+
+    Printf(false, "");
+    Printf(false, "%Ft views to include:");
+    for(int i = 0; i < SolveSpaceUI::kNumDrawingViews; i++) {
+        Printf(false, "  %Fd%f%Ll%D%s  %s%E",
+            &ScreenChangeDrawingView,
+            (uint32_t)i,
+            (SS.drawingViewMask & (1u << i)) ? CHECK_TRUE : CHECK_FALSE,
+            SolveSpaceUI::DrawingViewName(i));
+    }
+
+    Printf(false, "");
+    const char *paperName;
+    SolveSpaceUI::DrawingPaperSize(SS.drawingPaperSize, &paperName, NULL, NULL);
+    Printf(false, "%Ft paper:%E %Fd%s %Fl%Ll%f[change]%E", paperName,
+        &ScreenChangeDrawingPaper);
+    Printf(false, "  %Fd%f%Ll%s  landscape%E",
+        &ScreenChangeDrawingLandscape,
+        SS.drawingLandscape ? CHECK_TRUE : CHECK_FALSE);
+    Printf(false, "%Ft margin:%E %Fd%@ mm %Fl%Ll%f[change]%E", SS.drawingMargin,
+        &ScreenChangeDrawingMargin);
+    Printf(false, "%Ft line width:%E %Fd%@ mm %Fl%Ll%f[change]%E", SS.drawingLineWidth,
+        &ScreenChangeDrawingLineWidth);
+    std::string viewsPerPage = (SS.drawingViewsPerPage <= 0)
+                                   ? std::string("all (one sheet)")
+                                   : ssprintf("%d", SS.drawingViewsPerPage);
+    Printf(false, "%Ft views per page (PDF):%E %Fd%s %Fl%Ll%f[change]%E",
+        viewsPerPage.c_str(), &ScreenChangeDrawingViewsPerPage);
+
+    if(SS.drawingPreview.nPages > 1) {
+        Printf(false, "%Ft preview page:%E %Fd%d of %d%E  %Fl%Ll%f[prev]%E  %Fl%Ln%f[next]%E",
+            SS.drawingPreviewPage + 1, SS.drawingPreview.nPages,
+            &ScreenDrawingPagePrev, &ScreenDrawingPageNext);
+    }
+
+    Printf(false, "");
+    Printf(false, "    %Fl%Ll%f[ export to file... ]%E",
+        &ScreenExportDrawingToFile);
+}
+
 bool TextWindow::EditControlDoneForConfiguration(const std::string &s) {
     switch(edit.meaning) {
         case Edit::LIGHT_INTENSITY:
@@ -484,9 +534,15 @@ bool TextWindow::EditControlDoneForConfiguration(const std::string &s) {
         }
         case Edit::DRAWING_MARGIN:
             SS.drawingMargin = max(0.0, atof(s.c_str()));
+            SS.GW.UpdateDrawingPreview();
             break;
         case Edit::DRAWING_VIEWS_PER_PAGE:
             SS.drawingViewsPerPage = max(0, atoi(s.c_str()));
+            SS.GW.UpdateDrawingPreview();
+            break;
+        case Edit::DRAWING_LINE_WIDTH:
+            SS.drawingLineWidth = max(0.01, atof(s.c_str()));
+            SS.GW.UpdateDrawingPreview();
             break;
         case Edit::MAX_SEGMENTS: {
             if(edit.i == 0) {

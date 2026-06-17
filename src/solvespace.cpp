@@ -57,6 +57,7 @@ void SolveSpaceUI::Init() {
     drawingPaperSize = settings->ThawInt("DrawingPaperSize", 1); // A4
     drawingLandscape = settings->ThawBool("DrawingLandscape", false);
     drawingMargin    = settings->ThawFloat("DrawingMargin", 8.5);
+    drawingLineWidth = settings->ThawFloat("DrawingLineWidth", 0.28);
     drawingViewsPerPage = settings->ThawInt("DrawingViewsPerPage", 0); // all on one sheet
     // Chord tolerance
     exportChordTol = settings->ThawFloat("ExportChordTolerance", 0.1);
@@ -254,6 +255,7 @@ void SolveSpaceUI::Exit() {
     settings->FreezeInt("DrawingPaperSize", drawingPaperSize);
     settings->FreezeBool("DrawingLandscape", drawingLandscape);
     settings->FreezeFloat("DrawingMargin", drawingMargin);
+    settings->FreezeFloat("DrawingLineWidth", drawingLineWidth);
     settings->FreezeInt("DrawingViewsPerPage", drawingViewsPerPage);
     // Export Chord tolerance
     settings->FreezeFloat("ExportChordTolerance", (float)exportChordTol);
@@ -777,20 +779,15 @@ void SolveSpaceUI::MenuFile(Command id) {
             break;
         }
 
-        case Command::EXPORT_DRAWING: {
-            Platform::FileDialogRef dialog = Platform::CreateSaveFileDialog(SS.GW.window);
-            dialog->AddFilters(Platform::VectorFileFilters);
-            dialog->ThawChoices(settings, "ExportDrawing");
-            dialog->SuggestFilename(SS.saveFile);
-            if(!dialog->RunModal()) break;
-            dialog->FreezeChoices(settings, "ExportDrawing");
-
-            SS.ExportDrawingViewsTo(dialog->GetFilename());
-            if (SS.OnSaveFinished) {
-                SS.OnSaveFinished(dialog->GetFilename(), false, false);
-            }
+        case Command::EXPORT_DRAWING:
+            // Open the drawing-export screen (views/paper/etc. + an export
+            // action) and show its live preview in the viewport.
+            SS.TW.GoToScreen(TextWindow::Screen::DRAWING_EXPORT);
+            SS.GW.ForceTextWindowShown();
+            SS.ScheduleShowTW();
+            SS.drawingPreviewPage = 0;
+            SS.GW.UpdateDrawingPreview();
             break;
-        }
 
         case Command::EXPORT_WIREFRAME: {
             Platform::FileDialogRef dialog = Platform::CreateSaveFileDialog(SS.GW.window);

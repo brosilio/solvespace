@@ -524,7 +524,10 @@ public:
     int      drawingPaperSize;   // index into DrawingPaperSize()
     bool     drawingLandscape;
     double   drawingMargin;      // sheet margin, mm
+    double   drawingLineWidth;   // drawing line weight, mm (decoupled from zoom)
     int      drawingViewsPerPage; // 0 = all on one sheet; else N views/page (PDF)
+    DrawingSheet drawingPreview;  // cached sheet shown while the export screen is up
+    int      drawingPreviewPage;  // which page of the preview is shown
     bool     arcDimDefaultDiameter;
     bool     showFullFilePath;
     bool     fixExportColors;

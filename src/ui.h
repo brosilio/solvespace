@@ -295,7 +295,8 @@ public:
         STYLE_INFO          = 6,
         PASTE_TRANSFORMED   = 7,
         EDIT_VIEW           = 8,
-        TANGENT_ARC         = 9
+        TANGENT_ARC         = 9,
+        DRAWING_EXPORT      = 10
     };
     typedef struct {
         Screen  screen;
@@ -349,6 +350,7 @@ public:
         ANIMATION_SPEED       = 121,
         DRAWING_MARGIN        = 122,
         DRAWING_VIEWS_PER_PAGE = 123,
+        DRAWING_LINE_WIDTH    = 124,
         // For TTF text
         TTF_TEXT              = 300,
         // For the step dimension screen
@@ -414,6 +416,7 @@ public:
     void ShowGroupInfo();
     void ShowGroupSolveInfo();
     void ShowConfiguration();
+    void ShowDrawingExport();
     void ShowListOfStyles();
     void ShowStyleInfo();
     void ShowStepDimension();
@@ -478,6 +481,10 @@ public:
     static void ScreenChangeDrawingLandscape(int link, uint32_t v);
     static void ScreenChangeDrawingMargin(int link, uint32_t v);
     static void ScreenChangeDrawingViewsPerPage(int link, uint32_t v);
+    static void ScreenChangeDrawingLineWidth(int link, uint32_t v);
+    static void ScreenDrawingPagePrev(int link, uint32_t v);
+    static void ScreenDrawingPageNext(int link, uint32_t v);
+    static void ScreenExportDrawingToFile(int link, uint32_t v);
     static void ScreenChangeBackFaces(int link, uint32_t v);
     static void ScreenChangeShowContourAreas(int link, uint32_t v);
     static void ScreenChangeCheckClosedContour(int link, uint32_t v);
@@ -919,6 +926,12 @@ public:
     void DrawPersistent(Canvas *canvas);
     void Draw(Canvas *canvas);
     void Paint();
+
+    // Engineering-drawing preview, shown in the viewport while the export
+    // screen is active (see ExportDrawingViewsTo / DrawingSheet).
+    bool DrawingPreviewActive();
+    void UpdateDrawingPreview();
+    void DrawDrawingPreview(UiCanvas *uic, const Camera &camera);
 
     bool MouseEvent(Platform::MouseEvent event);
     void MouseMoved(double x, double y, bool leftDown, bool middleDown,

@@ -903,8 +903,9 @@ void GraphicsWindow::Paint() {
     canvas->SetCamera(camera);
     canvas->StartFrame();
 
-    // Draw the 3d objects.
-    Draw(canvas.get());
+    // Draw the 3d objects, unless we're showing the drawing-sheet preview
+    // (which replaces the model view while the export screen is active).
+    if(!DrawingPreviewActive()) Draw(canvas.get());
     canvas->FlushFrame();
 
     // Draw the 2d UI overlay.
@@ -915,6 +916,10 @@ void GraphicsWindow::Paint() {
 
     UiCanvas uiCanvas = {};
     uiCanvas.canvas = canvas;
+
+    if(DrawingPreviewActive()) {
+        DrawDrawingPreview(&uiCanvas, camera);
+    }
 
     // If a marquee selection is in progress, then draw the selection
     // rectangle, as an outline and a transparent fill.
@@ -1004,6 +1009,65 @@ void GraphicsWindow::Paint() {
     canvas->FlushFrame();
     canvas->FinishFrame();
     canvas->Clear();
+}
+
+bool GraphicsWindow::DrawingPreviewActive() {
+    return SS.TW.shown.screen == TextWindow::Screen::DRAWING_EXPORT;
+}
+
+void GraphicsWindow::UpdateDrawingPreview() {
+    if(DrawingPreviewActive()) {
+        SS.ComputeDrawingSheet(&SS.drawingPreview, /*allowMultiPage=*/true);
+    }
+    // Keep the shown page in range as the page count changes.
+    if(SS.drawingPreviewPage >= SS.drawingPreview.nPages) {
+        SS.drawingPreviewPage = SS.drawingPreview.nPages - 1;
+    }
+    if(SS.drawingPreviewPage < 0) SS.drawingPreviewPage = 0;
+    Invalidate();
+}
+
+void GraphicsWindow::DrawDrawingPreview(UiCanvas *uic, const Camera &camera) {
+    DrawingSheet &sheet = SS.drawingPreview;
+    if(sheet.items.empty() || sheet.pageW < LENGTH_EPS || sheet.pageH < LENGTH_EPS) return;
+
+    double vw = camera.width, vh = camera.height, pad = 24; // px
+    double s = min((vw - 2*pad) / sheet.pageW, (vh - 2*pad) / sheet.pageH);
+    if(s <= 0) return;
+    double sheetWpx = sheet.pageW * s, sheetHpx = sheet.pageH * s;
+    double left = (vw - sheetWpx) / 2.0, top = (vh - sheetHpx) / 2.0;
+
+    auto px = [&](Vector mm) {
+        return Point2d::From(left + mm.x * s, top + mm.y * s);
+    };
+    int lw = max(1, (int)(SS.drawingLineWidth * s + 0.5));
+
+    // The paper.
+    uic->DrawRect((int)left, (int)(left + sheetWpx), (int)top, (int)(top + sheetHpx),
+                  /*fill=*/RGBi(255, 255, 255), /*outline=*/RGBi(80, 80, 80));
+
+    int page = SS.drawingPreviewPage;
+    double tol = sheet.pageW / 800.0;
+    for(auto &item : sheet.items) {
+        if(item.page != page) continue;
+        for(auto &st : item.strokes) {
+            for(auto &b : st.beziers) {
+                List<Vector> lv = {};
+                b.MakePwlInto(&lv, tol);
+                for(int i = 1; i < lv.n; i++) {
+                    Point2d a = px(lv[i-1]), c = px(lv[i]);
+                    uic->DrawLine((int)a.x, (int)a.y, (int)c.x, (int)c.y, st.strokeRgb, lw);
+                }
+                lv.Clear();
+            }
+        }
+    }
+
+    if(sheet.nPages > 1) {
+        uic->DrawBitmapText(ssprintf("page %d of %d (export writes all)",
+                                     page + 1, sheet.nPages),
+                            (int)left, (int)top - 6, RGBi(170, 170, 170));
+    }
 }
 
 void GraphicsWindow::Invalidate(bool clearPersistent) {

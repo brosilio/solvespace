@@ -379,6 +379,7 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
     // Save state we temporarily change to capture geometry in model mm.
     Vector savedRight = SS.GW.projRight, savedUp = SS.GW.projUp;
     double savedScale = SS.exportScale, savedOffset = SS.exportOffset;
+    double savedGwScale = SS.GW.scale;
 
     // Standard view orientations as (right, up); n = right x up faces the
     // viewer. Order matches DrawingViewName()/the drawingViewMask bits.
@@ -422,8 +423,13 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
         Vector d = bmax.Minus(bmin);
         double extent = max(d.x, max(d.y, d.z));
         if(extent > LENGTH_EPS) {
-            cstyle->textHeight   = 0.03 * extent;
+            // ~label size on a typical sheet; tune if dims read large/small.
+            cstyle->textHeight   = 0.022 * extent;
             cstyle->textHeightAs = Style::UnitsAs::MM;
+            // Pin the view scale too, so dimension arrows/gaps (sized in
+            // pixels = 1/scale) don't track the user's zoom. 250/extent matches
+            // the familiar default look (default scale 5 at extent 50).
+            SS.GW.scale = 250.0 / extent;
         }
     }
 
@@ -472,6 +478,7 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
     SS.GW.projUp    = savedUp;
     SS.exportScale  = savedScale;
     SS.exportOffset = savedOffset;
+    SS.GW.scale     = savedGwScale;
     cstyle->textHeight   = savedTextHeight;
     cstyle->textHeightAs = savedTextHeightAs;
     g->GenerateDisplayItems();
@@ -544,7 +551,10 @@ void SolveSpaceUI::ComputeDrawingSheet(DrawingSheet *sheet, bool allowMultiPage)
         // View linework, placed in page mm.
         for(auto &st : captured[i].strokes) {
             DrawingSheet::Stroke ds;
-            ds.strokeRgb = st.strokeRgb; ds.lineWidth = st.lineWidth;
+            // Use the chosen sheet line weight rather than the captured width,
+            // which is pixels/zoom (Style::WidthMm) and thus depends on the
+            // current zoom level.
+            ds.strokeRgb = st.strokeRgb; ds.lineWidth = SS.drawingLineWidth;
             ds.filled    = st.filled;    ds.fillRgb   = st.fillRgb;  ds.hs = st.hs;
             for(auto &sb : st.beziers) {
                 SBezier t = sb;

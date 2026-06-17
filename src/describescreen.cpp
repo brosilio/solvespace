@@ -584,6 +584,9 @@ void TextWindow::DescribeSelection() {
 
 void TextWindow::GoToScreen(Screen screen) {
     shown.screen = screen;
+    // Repaint the viewport so the engineering-drawing preview appears/clears
+    // as we enter or leave its screen.
+    SS.GW.Invalidate();
 }
 
 } // namespace SolveSpace
